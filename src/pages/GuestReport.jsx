@@ -3,7 +3,7 @@ import { db } from "../firebase";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import ThemeToggle from "../components/ThemeToggle";
 
-const GEMINI_KEY = import.meta.env.VITE_GEMINI_KEY;
+const GEMINI_KEY = import.meta.env.VITE_GEMINI_KEY || "AIzaSyCURZ8pc2rIDWuI0jORYQdBSLH-lZOg9-w";
 
 const CRISIS_TYPES = [
   { id: "Medical",  icon: "♥", color: "#E8473F", desc: "Injury or illness"   },

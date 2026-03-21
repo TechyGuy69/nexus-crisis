@@ -9,5 +9,8 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
+  },
+  define: {
+    'import.meta.env.VITE_GEMINI_KEY': JSON.stringify(process.env.VITE_GEMINI_KEY)
   }
 })
