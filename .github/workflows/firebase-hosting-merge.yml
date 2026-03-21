@@ -26,7 +26,7 @@ jobs:
           VITE_GEMINI_KEY: ${{ secrets.VITE_GEMINI_KEY }}
 
       - name: Deploy to Firebase Hosting
-        uses: FirebaseExtended/action-firebase-deploy@v0
+        uses: FirebaseExtended/action-firebase-deploy@v0.9.0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_NEXUS_CRISIS }}
