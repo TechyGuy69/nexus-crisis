@@ -3,7 +3,7 @@ import { db } from "../firebase";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import ThemeToggle from "../components/ThemeToggle";
 
-const GEMINI_KEY = import.meta.env.VITE_GEMINI_KEY || "AIzaSyCURZ8pc2rIDWuI0jORYQdBSLH-lZOg9-w";
+const GEMINI_KEY = import.meta.env.VITE_GEMINI_KEY;
 
 const CRISIS_TYPES = [
   { id: "Medical",  icon: "♥", color: "#E8473F", desc: "Injury or illness"   },
@@ -36,7 +36,7 @@ export default function GuestReport() {
     setLoading(true);
     try {
       const aiRes = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
