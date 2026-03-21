@@ -15,6 +15,7 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: 18
+          cache: 'npm'
 
       - name: Install dependencies
         run: npm install
@@ -24,7 +25,7 @@ jobs:
         env:
           VITE_GEMINI_KEY: ${{ secrets.VITE_GEMINI_KEY }}
 
-      - name: Deploy to Firebase
+      - name: Deploy to Firebase Hosting
         uses: FirebaseExtended/action-firebase-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
