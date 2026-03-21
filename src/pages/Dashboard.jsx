@@ -3,7 +3,7 @@ import { db } from "../firebase";
 import { collection, onSnapshot, orderBy, query, doc, updateDoc } from "firebase/firestore";
 import { useIncidentAlert } from "../hooks/useIncidentAlert";
 
-const GEMINI_KEY = "AIzaSyCURZ8pc2rIDWuI0jORYQdBSLH-lZOg9-w";
+const GEMINI_KEY = import.meta.env.VITE_GEMINI_KEY;
 const sevColor = { P1: "#E8473F", P2: "#F0A500", P3: "#4B8FE2" };
 const sevBg    = { P1: "#E8473F18", P2: "#F0A50018", P3: "#4B8FE218" };
 const typeIcon = { Medical: "♥", Fire: "▲", Security: "◉", Flood: "◈", Panic: "!", Other: "…" };
