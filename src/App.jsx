@@ -3,7 +3,9 @@ import { useEffect, useState } from "react";
 import { auth } from "./firebase";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { useTheme } from "./context/ThemeContext";
+import { useLanguage } from "./context/LanguageContext";
 import ThemeToggle from "./components/ThemeToggle";
+import LanguageSelector from "./components/LanguageSelector";
 import GuestReport   from "./pages/GuestReport";
 import Dashboard     from "./pages/Dashboard";
 import Landing       from "./pages/Landing";
@@ -19,6 +21,7 @@ function Nav() {
   const navigate = useNavigate();
   const loc      = useLocation();
   const { isDark } = useTheme();
+  const { t } = useLanguage();
   const [user, setUser]         = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -34,10 +37,10 @@ function Nav() {
   if (hide) return null;
 
   const links = [
-    { path: "/dashboard", label: "Dashboard" },
-    { path: "/analytics", label: "Analytics" },
-    { path: "/history",   label: "History"   },
-    { path: "/qr",        label: "QR Codes"  },
+    { path: "/dashboard", label: t.dashboard },
+    { path: "/analytics", label: t.analytics },
+    { path: "/history",   label: t.history   },
+    { path: "/qr",        label: t.qrCodes   },
   ];
 
   return (
@@ -73,6 +76,7 @@ function Nav() {
         )}
 
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <LanguageSelector />
           <ThemeToggle />
           {!isMobile && (
             <>
@@ -80,18 +84,18 @@ function Nav() {
                 padding: "6px 14px", background: "var(--bg3)",
                 border: "1px solid var(--border2)", borderRadius: 8,
                 color: "var(--text2)", fontSize: 12, cursor: "pointer"
-              }}>Staff View</button>
+              }}>{t.staffView}</button>
               <button onClick={() => navigate("/report")} style={{
                 padding: "6px 14px", background: "var(--red)",
                 border: "none", borderRadius: 8,
                 color: "#fff", fontSize: 12, cursor: "pointer", fontWeight: 600
-              }}>+ Report</button>
+              }}>{t.report}</button>
               {user && (
                 <button onClick={() => signOut(auth).then(() => navigate("/login"))} style={{
                   padding: "6px 12px", background: "transparent",
                   border: "1px solid var(--border)", borderRadius: 8,
                   color: "var(--text3)", fontSize: 12, cursor: "pointer"
-                }}>Sign Out</button>
+                }}>{t.signOut}</button>
               )}
             </>
           )}
@@ -128,18 +132,18 @@ function Nav() {
             padding: "12px 16px", background: "var(--red)", border: "none",
             borderRadius: 10, color: "#fff", fontSize: 14,
             fontWeight: 700, cursor: "pointer"
-          }}>+ Report Emergency</button>
+          }}>{t.report}</button>
           <button onClick={() => { navigate("/responder"); setMenuOpen(false); }} style={{
             padding: "12px 16px", background: "var(--bg3)",
             border: "1px solid var(--border2)", borderRadius: 10,
             color: "var(--text2)", fontSize: 14, cursor: "pointer"
-          }}>Staff View</button>
+          }}>{t.staffView}</button>
           {user && (
             <button onClick={() => signOut(auth).then(() => navigate("/login"))} style={{
               padding: "12px 16px", background: "transparent",
               border: "1px solid var(--border)", borderRadius: 10,
               color: "var(--text3)", fontSize: 13, cursor: "pointer"
-            }}>Sign Out</button>
+            }}>{t.signOut}</button>
           )}
         </div>
       )}
