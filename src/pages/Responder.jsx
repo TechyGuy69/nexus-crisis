@@ -44,7 +44,7 @@ export default function Responder() {
           background: "transparent", border: "none", color: "var(--text2)",
           fontSize: 14, cursor: "pointer", padding: 0, fontFamily: "'Syne',sans-serif"
         }}>{t.backToList}</button>
-        <span style={{ fontFamily: "'DM Mono',monospace", fontWeight: 700, color: "var(--red)", fontSize: 15 }}>NEXUS</span>
+        <span onClick={() => window.location.href = "/"} style={{ fontFamily: "'DM Mono',monospace", fontWeight: 700, color: "var(--red)", fontSize: 15, cursor: "pointer" }}>NEXUS</span>
         <div style={{ display: "flex", gap: 8 }}><LanguageSelector /><ThemeToggle /></div>
       </div>
 

@@ -34,7 +34,7 @@ export default function Login() {
         display: "flex", justifyContent: "space-between", alignItems: "center",
         padding: "16px 24px", borderBottom: "1px solid var(--border)"
       }}>
-        <span style={{ fontFamily: "'DM Mono',monospace", fontWeight: 700, color: "var(--red)", fontSize: 16 }}>NEXUS</span>
+        <span onClick={() => window.location.href = "/"} style={{ fontFamily: "'DM Mono',monospace", fontWeight: 700, color: "var(--red)", fontSize: 15, cursor: "pointer" }}>NEXUS</span>
         <div style={{ display: "flex", gap: 8 }}>
           <LanguageSelector />
           <ThemeToggle />

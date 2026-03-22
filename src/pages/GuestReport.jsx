@@ -90,7 +90,7 @@ export default function GuestReport() {
         display: "flex", justifyContent: "space-between", alignItems: "center",
         padding: "14px 20px", borderBottom: "1px solid var(--border)"
       }}>
-        <span style={{ fontFamily: "'DM Mono',monospace", fontWeight: 700, color: "var(--red)", fontSize: 15 }}>NEXUS</span>
+        <span onClick={() => window.location.href = "/"} style={{ fontFamily: "'DM Mono',monospace", fontWeight: 700, color: "var(--red)", fontSize: 15, cursor: "pointer" }}>NEXUS</span>
         <div style={{ display: "flex", gap: 8 }}>
           <LanguageSelector />
           <ThemeToggle />
@@ -135,7 +135,7 @@ export default function GuestReport() {
         display: "flex", justifyContent: "space-between", alignItems: "center",
         padding: "14px 20px", borderBottom: "1px solid var(--border)"
       }}>
-        <span style={{ fontFamily: "'DM Mono',monospace", fontWeight: 700, color: "var(--red)", fontSize: 15 }}>NEXUS</span>
+        <span style={{ fontFamily: "'DM Mono',monospace", fontWeight: 700, color: "var(--red)", fontSize: 15, cursor: "pointer" }} onClick={() => window.location.href = "/"}>NEXUS</span>
         <div style={{ display: "flex", gap: 8 }}>
           <LanguageSelector />
           <ThemeToggle />
