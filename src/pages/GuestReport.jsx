@@ -5,7 +5,9 @@ import ThemeToggle from "../components/ThemeToggle";
 import LanguageSelector from "../components/LanguageSelector";
 import { useLanguage } from "../context/LanguageContext";
 
-const GEMINI_KEY = import.meta.env.VITE_GEMINI_KEY;
+const GEMINI_KEY    = import.meta.env.VITE_GEMINI_KEY;
+const CLOUD_NAME    = "dsk8xiopk";
+const UPLOAD_PRESET = "nexus_voices";
 
 export default function GuestReport() {
   const { t } = useLanguage();
@@ -100,6 +102,20 @@ export default function GuestReport() {
     if (!audioBlob || !room) return;
     setProcessing(true);
     try {
+      // Upload to Cloudinary
+      const formData = new FormData();
+      formData.append("file", audioBlob, "voice-report.webm");
+      formData.append("upload_preset", UPLOAD_PRESET);
+      formData.append("folder", "voice-reports");
+
+      const uploadRes  = await fetch(
+        `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/video/upload`,
+        { method: "POST", body: formData }
+      );
+      const uploadData      = await uploadRes.json();
+      const audioDownloadURL = uploadData.secure_url;
+
+      // Send to Gemini
       const base64 = await new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onloadend = () => resolve(reader.result.split(",")[1]);
@@ -165,6 +181,7 @@ export default function GuestReport() {
         estimatedMinutes: result.estimated_minutes || 5,
         status: "active",
         voiceReport: true,
+        audioURL: audioDownloadURL,
         timestamp: serverTimestamp()
       });
 
@@ -210,12 +227,15 @@ export default function GuestReport() {
           })
         }
       );
-
       if (!aiRes.ok) throw new Error("API error");
       const aiData  = await aiRes.json();
       const rawText = aiData?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
       const cleaned = rawText.replace(/```json|```/g, "").trim();
-      let aiJson = { severity: "P2", briefing: "Staff alerted.", action: "Respond immediately.", responders: ["Security"], estimated_minutes: 5 };
+      let aiJson = {
+        severity: "P2", briefing: "Staff alerted.",
+        action: "Respond immediately.",
+        responders: ["Security"], estimated_minutes: 5
+      };
       try { aiJson = JSON.parse(cleaned); } catch (e) {}
 
       await addDoc(collection(db, "incidents"), {
@@ -251,7 +271,10 @@ export default function GuestReport() {
         <p style={{ color: "var(--text2)", fontSize: 15, maxWidth: 300, lineHeight: 1.7, marginBottom: 32 }}>{t.staffNotified}</p>
         <div style={{ background: "var(--bg2)", border: "1px solid var(--border)", borderRadius: 16, padding: 20, maxWidth: 300, width: "100%", boxShadow: "var(--card-shadow)" }}>
           <div style={{ fontSize: 10, color: "var(--text3)", letterSpacing: "0.1em", marginBottom: 12, fontFamily: "'DM Mono',monospace" }}>{t.emergencyContacts}</div>
-          {[{ label: t.reception, val: "0" }, { label: t.nationalEmergency, val: "112" }].map(c => (
+          {[
+            { label: t.reception,        val: "0"   },
+            { label: t.nationalEmergency, val: "112" },
+          ].map(c => (
             <div key={c.label} style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid var(--border)" }}>
               <span style={{ fontSize: 14, color: "var(--text2)" }}>{c.label}</span>
               <span style={{ fontSize: 14, fontWeight: 700, color: "var(--red)", fontFamily: "'DM Mono',monospace" }}>{c.val}</span>
@@ -292,7 +315,7 @@ export default function GuestReport() {
             <div style={{ height: "100%", borderRadius: 2, background: "var(--red)", width: voiceMode ? "100%" : step === 1 ? "50%" : "100%", transition: "width 0.4s ease" }} />
           </div>
 
-          {/* STEP 1 — name + room */}
+          {/* STEP 1 */}
           {step === 1 && !voiceMode && (
             <div style={{ animation: "fadeUp 0.35s ease" }}>
               {[
@@ -301,7 +324,9 @@ export default function GuestReport() {
               ].map(f => (
                 <div key={f.label} style={{ marginBottom: 16 }}>
                   <label style={{ fontSize: 11, color: "var(--text3)", letterSpacing: "0.1em", display: "block", marginBottom: 7, fontFamily: "'DM Mono',monospace" }}>{f.label}</label>
-                  <input value={f.val} onChange={e => f.set(e.target.value)} placeholder={f.placeholder}
+                  <input
+                    value={f.val} onChange={e => f.set(e.target.value)}
+                    placeholder={f.placeholder}
                     style={{ width: "100%", padding: "14px 16px", background: "var(--input-bg)", border: "1px solid var(--border2)", borderRadius: 12, color: "var(--text)", fontSize: 15, outline: "none", transition: "border-color 0.2s" }}
                     onFocus={e => e.target.style.borderColor = "var(--red)"}
                     onBlur={e => e.target.style.borderColor = "var(--border2)"}
@@ -309,21 +334,16 @@ export default function GuestReport() {
                 </div>
               ))}
 
-              {/* Two options — type or voice */}
+              {/* Two options */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 8 }}>
-                <button onClick={() => { if (!room.trim()) return alert("Please enter your room number"); setStep(2); }}
+                <button
+                  onClick={() => { if (!room.trim()) return alert("Please enter your room number"); setStep(2); }}
                   style={{ padding: 14, background: "var(--red)", color: "#fff", border: "none", borderRadius: 12, fontSize: 15, fontWeight: 700, cursor: "pointer" }}>
                   {t.continue}
                 </button>
-                <button onClick={() => {
-                  if (!room.trim()) return alert("Please enter your room number");
-                  startRecording();
-                }} style={{
-                  padding: 14, background: "var(--bg3)", color: "var(--text)",
-                  border: "1px solid var(--border2)", borderRadius: 12,
-                  fontSize: 15, fontWeight: 600, cursor: "pointer",
-                  display: "flex", alignItems: "center", justifyContent: "center", gap: 8
-                }}>
+                <button
+                  onClick={() => { if (!room.trim()) return alert("Please enter your room number"); startRecording(); }}
+                  style={{ padding: 14, background: "var(--bg3)", color: "var(--text)", border: "1px solid var(--border2)", borderRadius: 12, fontSize: 15, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
                   🎤 Voice
                 </button>
               </div>
@@ -350,20 +370,25 @@ export default function GuestReport() {
                   {recording ? "⏹" : "🎤"}
                 </button>
 
-                {/* Status */}
+                {/* Recording status */}
                 {recording && (
                   <div style={{ textAlign: "center", width: "100%" }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 10 }}>
                       <div style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--red)", animation: "pulse 1s infinite" }} />
-                      <span style={{ fontSize: 14, color: "var(--red)", fontWeight: 600 }}>Recording {recordingTime}s / 30s</span>
+                      <span style={{ fontSize: 14, color: "var(--red)", fontWeight: 600 }}>
+                        Recording {recordingTime}s / 30s
+                      </span>
                     </div>
                     <div style={{ height: 4, background: "var(--border)", borderRadius: 2, overflow: "hidden", maxWidth: 280, margin: "0 auto" }}>
                       <div style={{ height: "100%", background: "var(--red)", borderRadius: 2, width: `${(recordingTime / 30) * 100}%`, transition: "width 1s linear" }} />
                     </div>
-                    <div style={{ fontSize: 12, color: "var(--text3)", marginTop: 8 }}>Tap ⏹ to stop and send</div>
+                    <div style={{ fontSize: 12, color: "var(--text3)", marginTop: 8 }}>
+                      Tap ⏹ to stop and send
+                    </div>
                   </div>
                 )}
 
+                {/* Idle state */}
                 {!recording && !audioBlob && (
                   <div style={{ textAlign: "center" }}>
                     <div style={{ fontSize: 14, color: "var(--text2)", marginBottom: 6 }}>Tap the mic and speak</div>
@@ -371,23 +396,27 @@ export default function GuestReport() {
                   </div>
                 )}
 
-                {/* Audio recorded — ready to send */}
+                {/* Audio recorded */}
                 {!recording && audioBlob && (
                   <div style={{ width: "100%", textAlign: "center" }}>
-                    <div style={{ fontSize: 13, color: "var(--green)", marginBottom: 12, fontWeight: 600 }}>✓ Voice recorded — ready to send</div>
+                    <div style={{ fontSize: 13, color: "var(--green)", marginBottom: 12, fontWeight: 600 }}>
+                      ✓ Voice recorded — ready to send
+                    </div>
                     <audio src={audioURL} controls style={{ width: "100%", marginBottom: 16 }} />
                     <button onClick={submitVoice} disabled={processing} style={{
-                      width: "100%", padding: 16, background: "#E8473F",
+                      width: "100%", padding: 16, background: "var(--red)",
                       color: "#fff", border: "none", borderRadius: 12,
-                      fontSize: 16, fontWeight: 700, cursor: processing ? "not-allowed" : "pointer",
+                      fontSize: 16, fontWeight: 700,
+                      cursor: processing ? "not-allowed" : "pointer",
                       display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
                       opacity: processing ? 0.7 : 1
                     }}>
                       {processing
-                        ? <><div className="spinner" /> AI is processing your voice...</>
+                        ? <><div className="spinner" />Sending alert...</>
                         : "🚨 SEND VOICE ALERT"}
                     </button>
-                    <button onClick={() => { setAudioBlob(null); setAudioURL(null); setRecordingTime(0); startRecording(); }}
+                    <button
+                      onClick={() => { setAudioBlob(null); setAudioURL(null); setRecordingTime(0); startRecording(); }}
                       style={{ marginTop: 10, width: "100%", padding: 12, background: "transparent", color: "var(--text2)", border: "1px solid var(--border)", borderRadius: 12, fontSize: 14, cursor: "pointer" }}>
                       Record Again
                     </button>
@@ -395,18 +424,14 @@ export default function GuestReport() {
                 )}
               </div>
 
-              {/* Cancel voice */}
-              <button onClick={cancelVoice} style={{
-                width: "100%", padding: 12, background: "transparent",
-                color: "var(--text3)", border: "1px solid var(--border)",
-                borderRadius: 12, fontSize: 13, cursor: "pointer", marginTop: 8
-              }}>
+              {/* Cancel */}
+              <button onClick={cancelVoice} style={{ width: "100%", padding: 12, background: "transparent", color: "var(--text3)", border: "1px solid var(--border)", borderRadius: 12, fontSize: 13, cursor: "pointer", marginTop: 8 }}>
                 ← Use manual report instead
               </button>
             </div>
           )}
 
-          {/* STEP 2 — manual type selection */}
+          {/* STEP 2 */}
           {step === 2 && !voiceMode && (
             <div style={{ animation: "fadeUp 0.35s ease" }}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 20 }}>
@@ -417,7 +442,9 @@ export default function GuestReport() {
                     background: type === ct.id ? ct.color + "15" : "var(--input-bg)",
                     transition: "all 0.15s", position: "relative", overflow: "hidden"
                   }}>
-                    {type === ct.id && <div style={{ position: "absolute", top: 8, right: 8, width: 7, height: 7, borderRadius: "50%", background: ct.color, animation: "pulse 1.5s infinite" }} />}
+                    {type === ct.id && (
+                      <div style={{ position: "absolute", top: 8, right: 8, width: 7, height: 7, borderRadius: "50%", background: ct.color, animation: "pulse 1.5s infinite" }} />
+                    )}
                     <div style={{ fontSize: 22, marginBottom: 6, color: ct.color }}>{ct.icon}</div>
                     <div style={{ fontSize: 13, fontWeight: 700, color: type === ct.id ? ct.color : "var(--text)", marginBottom: 2 }}>{ct.label}</div>
                     <div style={{ fontSize: 11, color: "var(--text3)" }}>{ct.desc}</div>
@@ -426,8 +453,11 @@ export default function GuestReport() {
               </div>
 
               <div style={{ marginBottom: 20 }}>
-                <label style={{ fontSize: 11, color: "var(--text3)", letterSpacing: "0.1em", display: "block", marginBottom: 7, fontFamily: "'DM Mono',monospace" }}>{t.describeSituation}</label>
-                <textarea value={message} onChange={e => setMessage(e.target.value)}
+                <label style={{ fontSize: 11, color: "var(--text3)", letterSpacing: "0.1em", display: "block", marginBottom: 7, fontFamily: "'DM Mono',monospace" }}>
+                  {t.describeSituation}
+                </label>
+                <textarea
+                  value={message} onChange={e => setMessage(e.target.value)}
                   placeholder={t.describePlaceholder} rows={3}
                   style={{ width: "100%", padding: "12px 16px", background: "var(--input-bg)", border: "1px solid var(--border2)", borderRadius: 12, color: "var(--text)", fontSize: 14, outline: "none", resize: "none", transition: "border-color 0.2s" }}
                   onFocus={e => e.target.style.borderColor = selectedType?.color || "var(--red)"}
@@ -462,6 +492,7 @@ export default function GuestReport() {
               ))}
             </div>
           )}
+
         </div>
       </div>
     </div>
