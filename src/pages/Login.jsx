@@ -8,7 +8,7 @@ import { useLanguage } from "../context/LanguageContext";
 
 export default function Login() {
   const { t } = useLanguage();
-  const [email, setEmail]       = useState("staff@byteclubhotel.com");
+  const [email, setEmail]       = useState("g");
   const [password, setPassword] = useState("");
   const [error, setError]       = useState("");
   const [loading, setLoading]   = useState(false);
@@ -53,7 +53,7 @@ export default function Login() {
             <p style={{ color: "var(--text3)", fontSize: 13, marginBottom: 24 }}>{t.accessCrisis}</p>
 
             {[
-              { label: t.email,    val: email,    set: setEmail,    type: "email",    placeholder: "staff@byteclubhotel.com" },
+              { label: t.email,    val: email,    set: setEmail,    type: "email",    placeholder: "yourname@byteclubhotel.com" },
               { label: t.password, val: password, set: setPassword, type: "password", placeholder: "••••••••" },
             ].map(f => (
               <div key={f.label} style={{ marginBottom: 14 }}>
@@ -94,7 +94,7 @@ export default function Login() {
             </button>
 
             <div style={{ marginTop: 20, padding: "10px 14px", background: "var(--bg3)", borderRadius: 8, fontSize: 12, color: "var(--text3)", textAlign: "center", lineHeight: 1.8 }}>
-              Demo: staff@byteclubhotel.com<br />Password: nexus2024
+              User Id & Password Are Given To The Staffs
             </div>
           </div>
         </div>
