@@ -92,6 +92,15 @@ export default function Dashboard() {
     setReportLoading(true);
     setReport("");
     try {
+      const now = new Date();
+      const dateStr = now.toLocaleDateString("en-IN", {
+        weekday: "long", year: "numeric",
+        month: "long", day: "numeric"
+      });
+      const timeStr = now.toLocaleTimeString("en-IN", {
+        hour: "2-digit", minute: "2-digit"
+      });
+
       const res = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`,
         {
@@ -100,10 +109,39 @@ export default function Dashboard() {
           body: JSON.stringify({
             contents: [{
               parts: [{
-                text: `Formal hotel incident report for Byte Club Pvt Ltd.
-                Room ${inc.room}, Guest: ${inc.guestName}, Type: ${inc.type}, Severity: ${inc.severity}.
-                Description: "${inc.message}". Briefing: "${inc.briefing}". Action: "${inc.action}".
-                Write a professional 4-paragraph report: Summary, Timeline, Actions Taken, Recommendations.`
+                text: `Write a formal hotel incident report for Byte Club Pvt Ltd.
+
+Use these exact details — do not use placeholders like [Date] or [Time]:
+- Date: ${dateStr}
+- Time: ${timeStr}
+- Room: ${inc.room}
+- Guest Name: ${inc.guestName}
+- Incident Type: ${inc.type}
+- Severity: ${inc.severity}
+- Description: "${inc.message}"
+- AI Briefing: "${inc.briefing}"
+- Action Taken: "${inc.action}"
+- Responders: ${(inc.responders || ["Staff"]).join(", ")}
+- Estimated Response Time: ${inc.estimatedMinutes || 5} minutes
+
+Write exactly 4 paragraphs with these plain text headings (no markdown, no asterisks, no hashtags, no bold):
+
+1. SUMMARY
+Write the summary paragraph here using the actual date and time above.
+
+2. TIMELINE
+Write the timeline paragraph here using the actual date and time above.
+
+3. ACTIONS TAKEN
+Write actions taken paragraph here.
+
+4. RECOMMENDATIONS
+Write recommendations paragraph here.
+
+Important rules:
+- Use plain text only — no markdown, no ** bold **, no ## headers, no bullet points with *
+- Use the actual date and time provided, never write [Date] or [Time]
+- Keep it professional and concise`
               }]
             }]
           })
