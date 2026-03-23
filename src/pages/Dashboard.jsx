@@ -273,7 +273,7 @@ Important rules:
 
   function DetailContent({ inc, mobile = false }) {
     return (
-      <div style={{ animation: "fadeUp 0.3s ease" }}>
+      <div>
         {mobile && (
           <button onClick={backToList} style={{ background: "transparent", border: "none", color: "var(--text2)", fontSize: 14, cursor: "pointer", padding: "0 0 16px 0", fontFamily: "'Syne',sans-serif", display: "flex", alignItems: "center", gap: 6 }}>
             ← Back to list
