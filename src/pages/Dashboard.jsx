@@ -3,17 +3,28 @@ import { db } from "../firebase";
 import { collection, onSnapshot, orderBy, query, doc, updateDoc } from "firebase/firestore";
 import { useIncidentAlert } from "../hooks/useIncidentAlert";
 
-const GEMINI_KEY = import.meta.env.VITE_GEMINI_KEY;
-const sevColor = { P1: "#E8473F", P2: "#F0A500", P3: "#4B8FE2" };
-const sevBg = { P1: "#E8473F18", P2: "#F0A50018", P3: "#4B8FE218" };
-const typeIcon = { Medical: "♥", Fire: "▲", Security: "◉", Flood: "◈", Panic: "!", Other: "…" };
+const GEMINI_KEY   = import.meta.env.VITE_GEMINI_KEY;
+const sevColor     = { P1: "#E8473F", P2: "#F0A500", P3: "#4B8FE2" };
+const sevBg        = { P1: "#E8473F18", P2: "#F0A50018", P3: "#4B8FE218" };
+const typeIcon     = { Medical: "♥", Fire: "▲", Security: "◉", Flood: "◈", Panic: "!", Other: "…" };
+const priorityOrder = { P1: 0, P2: 1, P3: 2 };
 
 function timeAgo(ts) {
   if (!ts) return "just now";
   const diff = Math.floor((Date.now() - ts.toMillis()) / 1000);
-  if (diff < 60) return `${diff}s ago`;
+  if (diff < 60)   return `${diff}s ago`;
   if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
   return `${Math.floor(diff / 3600)}h ago`;
+}
+
+function sortByPriority(list) {
+  return [...list].sort((a, b) => {
+    const pa = priorityOrder[a.severity] ?? 3;
+    const pb = priorityOrder[b.severity] ?? 3;
+    if (pa !== pb) return pa - pb;
+    if (a.timestamp && b.timestamp) return b.timestamp.toMillis() - a.timestamp.toMillis();
+    return 0;
+  });
 }
 
 function Skeleton({ w = "100%", h = 14, r = 6 }) {
@@ -29,16 +40,16 @@ function Skeleton({ w = "100%", h = 14, r = 6 }) {
 }
 
 export default function Dashboard() {
-  const [incidents, setIncidents] = useState([]);
-  const [selected, setSelected] = useState(null);
-  const [report, setReport] = useState("");
+  const [incidents, setIncidents]         = useState([]);
+  const [selected, setSelected]           = useState(null);
+  const [report, setReport]               = useState("");
   const [reportLoading, setReportLoading] = useState(false);
-  const [filter, setFilter] = useState("active");
-  const [resolving, setResolving] = useState(false);
-  const [loaded, setLoaded] = useState(false);
-  const [showDetail, setShowDetail] = useState(false);
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
-  const [clock, setClock] = useState(new Date().toLocaleTimeString());
+  const [filter, setFilter]               = useState("active");
+  const [resolving, setResolving]         = useState(false);
+  const [loaded, setLoaded]               = useState(false);
+  const [showDetail, setShowDetail]       = useState(false);
+  const [isMobile, setIsMobile]           = useState(window.innerWidth < 768);
+  const [clock, setClock]                 = useState(new Date().toLocaleTimeString());
 
   useIncidentAlert(incidents);
 
@@ -49,9 +60,7 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setClock(new Date().toLocaleTimeString());
-    }, 1000);
+    const timer = setInterval(() => setClock(new Date().toLocaleTimeString()), 1000);
     return () => clearInterval(timer);
   }, []);
 
@@ -80,7 +89,7 @@ export default function Dashboard() {
     setResolving(true);
     await updateDoc(doc(db, "incidents", id), { status: "resolved" });
     const feedbackUrl = `${window.location.origin}/feedback?id=${id}`;
-    await navigator.clipboard.writeText(feedbackUrl).catch(() => { });
+    await navigator.clipboard.writeText(feedbackUrl).catch(() => {});
     alert(`Resolved! Feedback link copied:\n${feedbackUrl}`);
     setSelected(null);
     setReport("");
@@ -92,14 +101,9 @@ export default function Dashboard() {
     setReportLoading(true);
     setReport("");
     try {
-      const now = new Date();
-      const dateStr = now.toLocaleDateString("en-IN", {
-        weekday: "long", year: "numeric",
-        month: "long", day: "numeric"
-      });
-      const timeStr = now.toLocaleTimeString("en-IN", {
-        hour: "2-digit", minute: "2-digit"
-      });
+      const now     = new Date();
+      const dateStr = now.toLocaleDateString("en-IN", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+      const timeStr = now.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
 
       const res = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`,
@@ -127,16 +131,9 @@ Use these exact details — do not use placeholders like [Date] or [Time]:
 Write exactly 4 paragraphs with these plain text headings (no markdown, no asterisks, no hashtags, no bold):
 
 1. SUMMARY
-Write the summary paragraph here using the actual date and time above.
-
 2. TIMELINE
-Write the timeline paragraph here using the actual date and time above.
-
 3. ACTIONS TAKEN
-Write actions taken paragraph here.
-
 4. RECOMMENDATIONS
-Write recommendations paragraph here.
 
 Important rules:
 - Use plain text only — no markdown, no ** bold **, no ## headers, no bullet points with *
@@ -156,11 +153,88 @@ Important rules:
     }
   }
 
-  const active = incidents.filter(i => i.status === "active");
-  const resolved = incidents.filter(i => i.status === "resolved");
-  const displayed = filter === "active" ? active : resolved;
+  const active    = incidents.filter(i => i.status === "active");
+  const resolved  = incidents.filter(i => i.status === "resolved");
+  const displayed = sortByPriority(filter === "active" ? active : resolved);
 
-  // Voice message block — reused in both mobile and desktop
+  function PriorityBanner() {
+    if (filter !== "active" || displayed.length === 0) return null;
+    return (
+      <div style={{
+        padding: "8px 16px", fontSize: 10,
+        color: "var(--text3)", letterSpacing: "0.08em",
+        fontFamily: "'DM Mono',monospace",
+        borderBottom: "1px solid var(--border)",
+        background: "var(--bg3)",
+        display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap"
+      }}>
+        <span>SORTED BY PRIORITY</span>
+        <span style={{ color: "#E8473F" }}>● HIGH</span>
+        <span style={{ color: "#F0A500" }}>● MED</span>
+        <span style={{ color: "#4B8FE2" }}>● LOW</span>
+      </div>
+    );
+  }
+
+  function IncidentCard({ inc, isMobileView = false }) {
+    return (
+      <div onClick={() => selectIncident(inc)} style={{
+        padding: "14px 16px",
+        borderBottom: "1px solid var(--border)",
+        cursor: "pointer", transition: "background 0.1s",
+        background: selected?.id === inc.id ? "var(--bg3)" : "transparent",
+        borderLeft: `3px solid ${selected?.id === inc.id ? sevColor[inc.severity] || "var(--red)" : "transparent"}`,
+      }}
+        onMouseEnter={e => { if (selected?.id !== inc.id) e.currentTarget.style.background = "var(--bg3)"; }}
+        onMouseLeave={e => { if (selected?.id !== inc.id) e.currentTarget.style.background = "transparent"; }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5, gap: 8 }}>
+          <span style={{ fontWeight: 700, fontSize: 14, color: "var(--text)", display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+            <span style={{ color: sevColor[inc.severity], flexShrink: 0 }}>{typeIcon[inc.type] || "◉"}</span>
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {inc.type} · {inc.room}
+            </span>
+          </span>
+          <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
+            <span style={{
+              fontSize: 9, padding: "2px 6px", borderRadius: 4,
+              fontFamily: "'DM Mono',monospace", fontWeight: 700,
+              background: sevBg[inc.severity] || "#88888818",
+              color: sevColor[inc.severity] || "var(--text2)",
+            }}>
+              {inc.severity === "P1" ? "HIGH" : inc.severity === "P2" ? "MED" : "LOW"}
+            </span>
+            <span style={{
+              fontSize: 10, padding: "2px 7px", borderRadius: 20,
+              background: sevBg[inc.severity] || "#88888818",
+              color: sevColor[inc.severity] || "var(--text2)",
+              fontFamily: "'DM Mono',monospace",
+            }}>{inc.severity}</span>
+          </div>
+        </div>
+
+        <div style={{
+          display: "flex", alignItems: "center",
+          justifyContent: "space-between", marginBottom: 5
+        }}>
+          <span style={{ fontSize: 11, color: "var(--text3)" }}>
+            {inc.voiceReport && "🎤 "}{inc.guestName} · {timeAgo(inc.timestamp)}
+          </span>
+        </div>
+
+        <div style={{ fontSize: 12, color: "var(--text2)", lineHeight: 1.4, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
+          {inc.briefing}
+        </div>
+
+        {isMobileView && (
+          <div style={{ marginTop: 8, fontSize: 12, color: "var(--red)", fontWeight: 600 }}>
+            Tap to view details →
+          </div>
+        )}
+      </div>
+    );
+  }
+
   function VoiceMessageBlock({ inc }) {
     if (!inc.message) return null;
     return (
@@ -169,14 +243,9 @@ Important rules:
         borderRadius: 12, padding: 16, marginBottom: 16,
         boxShadow: "var(--card-shadow)"
       }}>
-        <div style={{
-          fontSize: 9, color: "var(--text3)",
-          letterSpacing: "0.1em", marginBottom: 10,
-          fontFamily: "'DM Mono',monospace"
-        }}>
+        <div style={{ fontSize: 9, color: "var(--text3)", letterSpacing: "0.1em", marginBottom: 10, fontFamily: "'DM Mono',monospace" }}>
           {inc.voiceReport ? "VOICE MESSAGE" : "GUEST MESSAGE"}
         </div>
-
         {inc.voiceReport ? (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--purple)" }}>
@@ -184,42 +253,149 @@ Important rules:
               <span>Guest reported via voice recording</span>
             </div>
             {inc.audioURL && (
-              <div style={{
-                background: "var(--bg3)", borderRadius: 10,
-                padding: "10px 14px", border: "1px solid var(--border)"
-              }}>
-                <div style={{
-                  fontSize: 11, color: "var(--text3)",
-                  marginBottom: 8, fontFamily: "'DM Mono',monospace"
-                }}>PLAY GUEST VOICE</div>
+              <div style={{ background: "var(--bg3)", borderRadius: 10, padding: "10px 14px", border: "1px solid var(--border)" }}>
+                <div style={{ fontSize: 11, color: "var(--text3)", marginBottom: 8, fontFamily: "'DM Mono',monospace" }}>PLAY GUEST VOICE</div>
                 <audio controls src={inc.audioURL} style={{ width: "100%", height: 36 }} />
               </div>
             )}
-            <div style={{
-              fontSize: 13, color: "var(--text2)",
-              lineHeight: 1.7, fontStyle: "italic",
-              wordBreak: "break-word", padding: "10px 14px",
-              background: "var(--bg3)", borderRadius: 8,
-              borderLeft: "3px solid var(--purple)"
-            }}>
+            <div style={{ fontSize: 13, color: "var(--text2)", lineHeight: 1.7, fontStyle: "italic", wordBreak: "break-word", padding: "10px 14px", background: "var(--bg3)", borderRadius: 8, borderLeft: "3px solid var(--purple)" }}>
               "{inc.message}"
             </div>
           </div>
         ) : (
-          <div style={{
-            fontSize: 14, color: "var(--text2)",
-            lineHeight: 1.7, fontStyle: "italic", wordBreak: "break-word"
-          }}>"{inc.message}"</div>
+          <div style={{ fontSize: 14, color: "var(--text2)", lineHeight: 1.7, fontStyle: "italic", wordBreak: "break-word" }}>
+            "{inc.message}"
+          </div>
         )}
       </div>
     );
   }
 
+  function DetailContent({ inc, mobile = false }) {
+    return (
+      <div style={{ animation: "fadeUp 0.3s ease" }}>
+        {mobile && (
+          <button onClick={backToList} style={{ background: "transparent", border: "none", color: "var(--text2)", fontSize: 14, cursor: "pointer", padding: "0 0 16px 0", fontFamily: "'Syne',sans-serif", display: "flex", alignItems: "center", gap: 6 }}>
+            ← Back to list
+          </button>
+        )}
+
+        {/* Header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: mobile ? 16 : 24, gap: 12, flexWrap: "wrap" }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
+              <span style={{
+                padding: "4px 12px", borderRadius: 20, fontSize: 11,
+                background: sevBg[inc.severity], color: sevColor[inc.severity],
+                fontFamily: "'DM Mono',monospace", fontWeight: 600
+              }}>{inc.severity}</span>
+              <span style={{
+                padding: "4px 12px", borderRadius: 20, fontSize: 11,
+                background: inc.severity === "P1" ? "#E8473F22" : inc.severity === "P2" ? "#F0A50022" : "#4B8FE222",
+                color: inc.severity === "P1" ? "#E8473F" : inc.severity === "P2" ? "#F0A500" : "#4B8FE2",
+                fontWeight: 700
+              }}>
+                {inc.severity === "P1" ? "🔴 HIGH PRIORITY" : inc.severity === "P2" ? "🟡 MEDIUM PRIORITY" : "🔵 LOW PRIORITY"}
+              </span>
+              <span style={{
+                padding: "4px 12px", borderRadius: 20, fontSize: 11,
+                background: inc.status === "active" ? "var(--red-dim)" : "#4CAF7D18",
+                color: inc.status === "active" ? "var(--red)" : "var(--green)"
+              }}>{inc.status}</span>
+              {inc.voiceReport && (
+                <span style={{ padding: "4px 12px", borderRadius: 20, fontSize: 11, background: "#8B7FE818", color: "var(--purple)" }}>
+                  🎤 Voice
+                </span>
+              )}
+            </div>
+            <h2 style={{ fontSize: mobile ? 20 : 26, fontWeight: 800, letterSpacing: "-0.02em", marginBottom: 6, color: "var(--text)" }}>
+              {typeIcon[inc.type]} {inc.type} Emergency
+            </h2>
+            <div style={{ color: "var(--text2)", fontSize: 13 }}>
+              Room {inc.room} · {inc.guestName} · {timeAgo(inc.timestamp)}
+            </div>
+          </div>
+          {inc.status === "active" && (
+            <button onClick={() => resolve(inc.id)} disabled={resolving} style={{
+              padding: mobile ? "10px 16px" : "10px 22px",
+              background: resolving ? "var(--bg3)" : "var(--green)",
+              color: resolving ? "var(--text3)" : "#fff",
+              border: "none", borderRadius: 10, fontSize: 13, fontWeight: 700,
+              cursor: resolving ? "not-allowed" : "pointer",
+              display: "flex", alignItems: "center", gap: 8, flexShrink: 0, whiteSpace: "nowrap"
+            }}>
+              {resolving ? <><div className="spinner" />Resolving...</> : mobile ? "Resolved ✓" : "Mark Resolved ✓"}
+            </button>
+          )}
+        </div>
+
+        {/* AI Briefing */}
+        <div style={{ background: "#8B7FE810", border: "1px solid #8B7FE830", borderRadius: 14, padding: mobile ? 14 : 20, marginBottom: 14 }}>
+          <div style={{ fontSize: 10, color: "var(--purple)", letterSpacing: "0.12em", marginBottom: 10, fontFamily: "'DM Mono',monospace", display: "flex", alignItems: "center", gap: 6 }}>
+            <div style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--purple)", animation: "pulse 2s infinite" }} />
+            GEMINI AI BRIEFING
+          </div>
+          <div style={{ fontSize: mobile ? 14 : 15, color: "var(--text)", lineHeight: 1.7, marginBottom: 14, wordBreak: "break-word" }}>{inc.briefing}</div>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 10, background: "var(--red-dim)", border: "1px solid var(--red-border)", borderRadius: 10, padding: "10px 14px" }}>
+            <span style={{ color: "var(--red)", fontSize: 16, flexShrink: 0 }}>⚡</span>
+            <span style={{ fontSize: mobile ? 13 : 14, color: "var(--text)", fontWeight: 600, wordBreak: "break-word" }}>{inc.action}</span>
+          </div>
+        </div>
+
+        {/* Info grid */}
+        <div style={{ display: "grid", gridTemplateColumns: mobile ? "1fr 1fr" : "1fr 1fr 1fr", gap: 10, marginBottom: 14 }}>
+          <div style={{ background: "var(--bg2)", border: "1px solid var(--border)", borderRadius: 12, padding: 14, boxShadow: "var(--card-shadow)" }}>
+            <div style={{ fontSize: 9, color: "var(--text3)", letterSpacing: "0.1em", marginBottom: 8, fontFamily: "'DM Mono',monospace" }}>RESPONDERS</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+              {(inc.responders || ["Security"]).map(r => (
+                <span key={r} style={{ padding: "3px 8px", background: "#4B8FE218", color: "var(--blue)", borderRadius: 20, fontSize: 11 }}>{r}</span>
+              ))}
+            </div>
+          </div>
+          <div style={{ background: "var(--bg2)", border: "1px solid var(--border)", borderRadius: 12, padding: 14, boxShadow: "var(--card-shadow)" }}>
+            <div style={{ fontSize: 9, color: "var(--text3)", letterSpacing: "0.1em", marginBottom: 8, fontFamily: "'DM Mono',monospace" }}>RESPONSE ETA</div>
+            <div style={{ fontSize: mobile ? 22 : 28, fontWeight: 800, color: "var(--amber)", fontFamily: "'DM Mono',monospace" }}>
+              {inc.estimatedMinutes || 5}<span style={{ fontSize: 12, color: "var(--text3)" }}> min</span>
+            </div>
+          </div>
+          {!mobile && (
+            <div style={{ background: "var(--bg2)", border: "1px solid var(--border)", borderRadius: 12, padding: 14, boxShadow: "var(--card-shadow)" }}>
+              <div style={{ fontSize: 9, color: "var(--text3)", letterSpacing: "0.1em", marginBottom: 8, fontFamily: "'DM Mono',monospace" }}>SEVERITY</div>
+              <div style={{ fontSize: 28, fontWeight: 800, color: sevColor[inc.severity], fontFamily: "'DM Mono',monospace" }}>{inc.severity}</div>
+            </div>
+          )}
+        </div>
+
+        {/* Voice / Guest message */}
+        <VoiceMessageBlock inc={inc} />
+
+        {/* AI Report */}
+        <div style={{ background: "var(--bg2)", border: "1px solid var(--border)", borderRadius: 12, padding: mobile ? 14 : 20, boxShadow: "var(--card-shadow)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
+            <div style={{ fontSize: 9, color: "var(--text3)", letterSpacing: "0.1em", fontFamily: "'DM Mono',monospace" }}>AI INCIDENT REPORT</div>
+            <button onClick={() => generateReport(inc)} disabled={reportLoading} style={{
+              padding: "6px 14px", background: "transparent",
+              border: "1px solid var(--border2)", borderRadius: 8,
+              color: "var(--text2)", fontSize: 12, cursor: "pointer",
+              display: "flex", alignItems: "center", gap: 6, fontFamily: "'Syne',sans-serif"
+            }}>
+              {reportLoading ? <><div className="spinner" style={{ width: 12, height: 12 }} />Generating...</> : "Generate with AI ◆"}
+            </button>
+          </div>
+          {report ? (
+            <div style={{ fontSize: 13, color: "var(--text2)", lineHeight: 1.9, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{report}</div>
+          ) : (
+            <div style={{ textAlign: "center", color: "var(--text3)", padding: "24px 0", fontSize: 13 }}>
+              Click "Generate with AI" to create a formal incident report
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div style={{
-      height: "100dvh", display: "flex", flexDirection: "column",
-      background: "var(--bg2)", overflow: "hidden", transition: "background 0.3s"
-    }}>
+    <div style={{ height: "100dvh", display: "flex", flexDirection: "column", background: "var(--bg2)", overflow: "hidden", transition: "background 0.3s" }}>
 
       <style>{`
         @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
@@ -240,22 +416,20 @@ Important rules:
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           {active.length > 0 && (
-            <div style={{
-              display: "flex", alignItems: "center", gap: 6,
-              background: "var(--red-dim)", border: "1px solid var(--red-border)",
-              borderRadius: 20, padding: "5px 12px"
-            }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--red-dim)", border: "1px solid var(--red-border)", borderRadius: 20, padding: "5px 12px" }}>
               <div style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--red)", animation: "pulse 1.2s infinite" }} />
               <span style={{ fontSize: 11, color: "var(--red)", fontFamily: "'DM Mono',monospace" }}>
                 {active.length} ACTIVE
+                {active.filter(i => i.severity === "P1").length > 0 && (
+                  <span style={{ marginLeft: 6, fontWeight: 700 }}>
+                    · {active.filter(i => i.severity === "P1").length} P1
+                  </span>
+                )}
               </span>
             </div>
           )}
           {!isMobile && (
-            <div style={{
-              fontSize: 11, color: "var(--text3)",
-              fontFamily: "'DM Mono',monospace"
-            }}>
+            <div style={{ fontSize: 11, color: "var(--text3)", fontFamily: "'DM Mono',monospace" }}>
               {clock}
             </div>
           )}
@@ -273,17 +447,15 @@ Important rules:
               {/* Stats */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
                 {[
-                  { label: "Active", val: active.length, color: "var(--red)" },
-                  { label: "Resolved", val: resolved.length, color: "var(--green)" },
-                  { label: "Total", val: incidents.length, color: "var(--text2)" },
+                  { label: "Active",   val: active.length,    color: "var(--red)"   },
+                  { label: "Resolved", val: resolved.length,  color: "var(--green)" },
+                  { label: "Total",    val: incidents.length, color: "var(--text2)" },
                 ].map((s, i) => (
                   <div key={s.label} style={{ padding: "12px 8px", textAlign: "center", borderRight: i < 2 ? "1px solid var(--border)" : "none", background: "var(--bg2)" }}>
                     <div style={{ fontSize: 20, fontWeight: 800, color: s.color, fontFamily: "'DM Mono',monospace" }}>
                       {loaded ? s.val : <Skeleton w={24} h={20} />}
                     </div>
-                    <div style={{ fontSize: 9, color: "var(--text3)", letterSpacing: "0.08em", marginTop: 3 }}>
-                      {s.label.toUpperCase()}
-                    </div>
+                    <div style={{ fontSize: 9, color: "var(--text3)", letterSpacing: "0.08em", marginTop: 3 }}>{s.label.toUpperCase()}</div>
                   </div>
                 ))}
               </div>
@@ -292,9 +464,9 @@ Important rules:
               <div style={{ display: "flex", borderBottom: "1px solid var(--border)", flexShrink: 0, background: "var(--bg2)" }}>
                 {["active", "resolved"].map(f => (
                   <button key={f} onClick={() => setFilter(f)} style={{
-                    flex: 1, padding: "10px 0", background: "transparent",
-                    border: "none", cursor: "pointer", fontSize: 11, fontWeight: 600,
-                    letterSpacing: "0.08em", textTransform: "uppercase",
+                    flex: 1, padding: "10px 0", background: "transparent", border: "none",
+                    cursor: "pointer", fontSize: 11, fontWeight: 600, letterSpacing: "0.08em",
+                    textTransform: "uppercase",
                     color: filter === f ? "var(--text)" : "var(--text3)",
                     borderBottom: `2px solid ${filter === f ? "var(--red)" : "transparent"}`,
                     transition: "all 0.15s", fontFamily: "'Syne',sans-serif"
@@ -315,40 +487,14 @@ Important rules:
                     ))}
                   </div>
                 ) : displayed.length === 0 ? (
-                  <div style={{ padding: 40, textAlign: "center", color: "var(--text3)", fontSize: 13, background: "var(--bg2)" }}>
+                  <div style={{ padding: 40, textAlign: "center", color: "var(--text3)", fontSize: 13 }}>
                     No {filter} incidents
                   </div>
                 ) : (
-                  displayed.map(inc => (
-                    <div key={inc.id} onClick={() => selectIncident(inc)} style={{
-                      padding: "14px 16px", borderBottom: "1px solid var(--border)",
-                      cursor: "pointer", background: "var(--bg2)", transition: "background 0.1s"
-                    }}
-                      onMouseEnter={e => e.currentTarget.style.background = "var(--bg3)"}
-                      onMouseLeave={e => e.currentTarget.style.background = "var(--bg2)"}
-                    >
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5, gap: 8 }}>
-                        <span style={{ fontWeight: 700, fontSize: 14, color: "var(--text)", display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
-                          <span style={{ color: sevColor[inc.severity], flexShrink: 0 }}>{typeIcon[inc.type] || "◉"}</span>
-                          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            {inc.type} · Room {inc.room}
-                          </span>
-                        </span>
-                        <span style={{ fontSize: 10, padding: "2px 7px", borderRadius: 20, background: sevBg[inc.severity] || "#88888818", color: sevColor[inc.severity] || "var(--text2)", fontFamily: "'DM Mono',monospace", flexShrink: 0 }}>
-                          {inc.severity}
-                        </span>
-                      </div>
-                      <div style={{ fontSize: 11, color: "var(--text3)", marginBottom: 5 }}>
-                        {inc.voiceReport && "🎤 "}{inc.guestName} · {timeAgo(inc.timestamp)}
-                      </div>
-                      <div style={{ fontSize: 12, color: "var(--text2)", lineHeight: 1.5, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
-                        {inc.briefing}
-                      </div>
-                      <div style={{ marginTop: 8, fontSize: 12, color: "var(--red)", fontWeight: 600 }}>
-                        Tap to view details →
-                      </div>
-                    </div>
-                  ))
+                  <>
+                    <PriorityBanner />
+                    {displayed.map(inc => <IncidentCard key={inc.id} inc={inc} isMobileView={true} />)}
+                  </>
                 )}
               </div>
             </div>
@@ -357,91 +503,7 @@ Important rules:
 
             /* MOBILE DETAIL */
             <div style={{ flex: 1, minHeight: 0, overflowY: "auto", background: "var(--bg2)", padding: "16px 16px 40px" }}>
-              <button onClick={backToList} style={{ background: "transparent", border: "none", color: "var(--text2)", fontSize: 14, cursor: "pointer", padding: "0 0 16px 0", fontFamily: "'Syne',sans-serif", display: "flex", alignItems: "center", gap: 6 }}>
-                ← Back to list
-              </button>
-
-              {selected && (
-                <div style={{ animation: "fadeUp 0.3s ease" }}>
-                  <div style={{ marginBottom: 16 }}>
-                    <div style={{ display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
-                      <span style={{ padding: "4px 12px", borderRadius: 20, fontSize: 11, background: sevBg[selected.severity], color: sevColor[selected.severity], fontFamily: "'DM Mono',monospace", fontWeight: 600 }}>{selected.severity}</span>
-                      <span style={{ padding: "4px 12px", borderRadius: 20, fontSize: 11, background: selected.status === "active" ? "var(--red-dim)" : "#4CAF7D18", color: selected.status === "active" ? "var(--red)" : "var(--green)" }}>{selected.status}</span>
-                      {selected.voiceReport && <span style={{ padding: "4px 12px", borderRadius: 20, fontSize: 11, background: "#8B7FE818", color: "var(--purple)" }}>🎤 Voice</span>}
-                    </div>
-                    <h2 style={{ fontSize: 22, fontWeight: 800, color: "var(--text)", marginBottom: 6, letterSpacing: "-0.02em" }}>
-                      {typeIcon[selected.type]} {selected.type} Emergency
-                    </h2>
-                    <div style={{ color: "var(--text2)", fontSize: 13 }}>
-                      Room {selected.room} · {selected.guestName} · {timeAgo(selected.timestamp)}
-                    </div>
-                  </div>
-
-                  {selected.status === "active" && (
-                    <button onClick={() => resolve(selected.id)} disabled={resolving} style={{
-                      width: "100%", padding: "12px 0", marginBottom: 16,
-                      background: resolving ? "var(--bg3)" : "var(--green)",
-                      color: resolving ? "var(--text3)" : "#fff",
-                      border: "none", borderRadius: 12, fontSize: 14, fontWeight: 700,
-                      cursor: resolving ? "not-allowed" : "pointer",
-                      display: "flex", alignItems: "center", justifyContent: "center", gap: 8
-                    }}>
-                      {resolving ? <><div className="spinner" />Resolving...</> : "Mark as Resolved ✓"}
-                    </button>
-                  )}
-
-                  {/* AI Briefing */}
-                  <div style={{ background: "#8B7FE810", border: "1px solid #8B7FE830", borderRadius: 14, padding: 16, marginBottom: 12 }}>
-                    <div style={{ fontSize: 10, color: "var(--purple)", letterSpacing: "0.12em", marginBottom: 8, fontFamily: "'DM Mono',monospace", display: "flex", alignItems: "center", gap: 6 }}>
-                      <div style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--purple)", animation: "pulse 2s infinite" }} />
-                      GEMINI AI BRIEFING
-                    </div>
-                    <div style={{ fontSize: 14, color: "var(--text)", lineHeight: 1.7, marginBottom: 12, wordBreak: "break-word" }}>{selected.briefing}</div>
-                    <div style={{ display: "flex", alignItems: "flex-start", gap: 8, background: "var(--red-dim)", border: "1px solid var(--red-border)", borderRadius: 10, padding: "10px 12px" }}>
-                      <span style={{ color: "var(--red)", flexShrink: 0 }}>⚡</span>
-                      <span style={{ fontSize: 13, color: "var(--text)", fontWeight: 600, wordBreak: "break-word" }}>{selected.action}</span>
-                    </div>
-                  </div>
-
-                  {/* Info grid */}
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
-                    <div style={{ background: "var(--bg3)", border: "1px solid var(--border)", borderRadius: 12, padding: 14 }}>
-                      <div style={{ fontSize: 9, color: "var(--text3)", letterSpacing: "0.1em", marginBottom: 8, fontFamily: "'DM Mono',monospace" }}>RESPONDERS</div>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                        {(selected.responders || ["Security"]).map(r => (
-                          <span key={r} style={{ padding: "3px 8px", background: "#4B8FE218", color: "var(--blue)", borderRadius: 20, fontSize: 11 }}>{r}</span>
-                        ))}
-                      </div>
-                    </div>
-                    <div style={{ background: "var(--bg3)", border: "1px solid var(--border)", borderRadius: 12, padding: 14 }}>
-                      <div style={{ fontSize: 9, color: "var(--text3)", letterSpacing: "0.1em", marginBottom: 8, fontFamily: "'DM Mono',monospace" }}>RESPONSE ETA</div>
-                      <div style={{ fontSize: 24, fontWeight: 800, color: "var(--amber)", fontFamily: "'DM Mono',monospace" }}>
-                        {selected.estimatedMinutes || 5}<span style={{ fontSize: 12, color: "var(--text3)" }}> min</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Voice / Guest message */}
-                  <VoiceMessageBlock inc={selected} />
-
-                  {/* AI Report */}
-                  <div style={{ background: "var(--bg3)", border: "1px solid var(--border)", borderRadius: 12, padding: 14 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
-                      <div style={{ fontSize: 9, color: "var(--text3)", letterSpacing: "0.1em", fontFamily: "'DM Mono',monospace" }}>AI INCIDENT REPORT</div>
-                      <button onClick={() => generateReport(selected)} disabled={reportLoading} style={{ padding: "6px 12px", background: "transparent", border: "1px solid var(--border2)", borderRadius: 8, color: "var(--text2)", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: "'Syne',sans-serif" }}>
-                        {reportLoading ? <><div className="spinner" style={{ width: 12, height: 12 }} />Generating...</> : "Generate with AI ◆"}
-                      </button>
-                    </div>
-                    {report ? (
-                      <div style={{ fontSize: 13, color: "var(--text2)", lineHeight: 1.9, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{report}</div>
-                    ) : (
-                      <div style={{ textAlign: "center", color: "var(--text3)", padding: "20px 0", fontSize: 13 }}>
-                        Click "Generate with AI" to create a formal incident report
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
+              {selected && <DetailContent inc={selected} mobile={true} />}
             </div>
           )}
         </div>
@@ -457,17 +519,15 @@ Important rules:
             {/* Stats */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
               {[
-                { label: "Active", val: active.length, color: "var(--red)" },
-                { label: "Resolved", val: resolved.length, color: "var(--green)" },
-                { label: "Total", val: incidents.length, color: "var(--text2)" },
+                { label: "Active",   val: active.length,    color: "var(--red)"   },
+                { label: "Resolved", val: resolved.length,  color: "var(--green)" },
+                { label: "Total",    val: incidents.length, color: "var(--text2)" },
               ].map((s, i) => (
                 <div key={s.label} style={{ padding: "14px 10px", textAlign: "center", borderRight: i < 2 ? "1px solid var(--border)" : "none" }}>
-                  <div style={{ fontSize: 22, fontWeight: 800, color: s.color, fontFamily: "'DM Mono',monospace", animation: loaded ? "fadeUp 0.4s ease" : "none" }}>
+                  <div style={{ fontSize: 22, fontWeight: 800, color: s.color, fontFamily: "'DM Mono',monospace" }}>
                     {loaded ? s.val : <Skeleton w={24} h={20} />}
                   </div>
-                  <div style={{ fontSize: 9, color: "var(--text3)", letterSpacing: "0.1em", marginTop: 3 }}>
-                    {s.label.toUpperCase()}
-                  </div>
+                  <div style={{ fontSize: 9, color: "var(--text3)", letterSpacing: "0.1em", marginTop: 3 }}>{s.label.toUpperCase()}</div>
                 </div>
               ))}
             </div>
@@ -476,9 +536,9 @@ Important rules:
             <div style={{ display: "flex", borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
               {["active", "resolved"].map(f => (
                 <button key={f} onClick={() => setFilter(f)} style={{
-                  flex: 1, padding: "10px 0", background: "transparent",
-                  border: "none", cursor: "pointer", fontSize: 11, fontWeight: 600,
-                  letterSpacing: "0.08em", textTransform: "uppercase",
+                  flex: 1, padding: "10px 0", background: "transparent", border: "none",
+                  cursor: "pointer", fontSize: 11, fontWeight: 600, letterSpacing: "0.08em",
+                  textTransform: "uppercase",
                   color: filter === f ? "var(--text)" : "var(--text3)",
                   borderBottom: `2px solid ${filter === f ? "var(--red)" : "transparent"}`,
                   transition: "all 0.15s", fontFamily: "'Syne',sans-serif"
@@ -503,40 +563,15 @@ Important rules:
                   No {filter} incidents
                 </div>
               ) : (
-                displayed.map(inc => (
-                  <div key={inc.id} onClick={() => selectIncident(inc)} style={{
-                    padding: "14px 16px", borderBottom: "1px solid var(--border)",
-                    cursor: "pointer", transition: "background 0.1s",
-                    background: selected?.id === inc.id ? "var(--bg3)" : "transparent",
-                    borderLeft: `3px solid ${selected?.id === inc.id ? sevColor[inc.severity] || "var(--red)" : "transparent"}`,
-                  }}
-                    onMouseEnter={e => { if (selected?.id !== inc.id) e.currentTarget.style.background = "var(--bg3)"; }}
-                    onMouseLeave={e => { if (selected?.id !== inc.id) e.currentTarget.style.background = "transparent"; }}
-                  >
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5, gap: 8 }}>
-                      <span style={{ fontWeight: 700, fontSize: 14, color: "var(--text)", display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
-                        <span style={{ color: sevColor[inc.severity], flexShrink: 0 }}>{typeIcon[inc.type] || "◉"}</span>
-                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {inc.type} · {inc.room}
-                        </span>
-                      </span>
-                      <span style={{ fontSize: 10, padding: "2px 7px", borderRadius: 20, background: sevBg[inc.severity] || "#88888818", color: sevColor[inc.severity] || "var(--text2)", fontFamily: "'DM Mono',monospace", flexShrink: 0 }}>
-                        {inc.severity}
-                      </span>
-                    </div>
-                    <div style={{ fontSize: 11, color: "var(--text3)", marginBottom: 5 }}>
-                      {inc.voiceReport && "🎤 "}{inc.guestName} · {timeAgo(inc.timestamp)}
-                    </div>
-                    <div style={{ fontSize: 12, color: "var(--text2)", lineHeight: 1.4, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
-                      {inc.briefing}
-                    </div>
-                  </div>
-                ))
+                <>
+                  <PriorityBanner />
+                  {displayed.map(inc => <IncidentCard key={inc.id} inc={inc} />)}
+                </>
               )}
             </div>
           </div>
 
-          {/* DESKTOP DETAIL PANEL */}
+          {/* DESKTOP DETAIL */}
           <div style={{ flex: 1, overflowY: "auto", background: "var(--bg)", padding: 28, minWidth: 0, transition: "background 0.3s" }}>
             {!selected ? (
               <div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, opacity: 0.4 }}>
@@ -544,105 +579,12 @@ Important rules:
                 <div style={{ color: "var(--text3)", fontSize: 14 }}>Select an incident to view details</div>
               </div>
             ) : (
-              <div style={{ maxWidth: 680, animation: "fadeUp 0.3s ease" }}>
-
-                {/* Header */}
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24, gap: 16 }}>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
-                      <span style={{ padding: "4px 12px", borderRadius: 20, fontSize: 11, background: sevBg[selected.severity], color: sevColor[selected.severity], fontFamily: "'DM Mono',monospace", fontWeight: 600 }}>
-                        {selected.severity}
-                      </span>
-                      <span style={{ padding: "4px 12px", borderRadius: 20, fontSize: 11, background: selected.status === "active" ? "var(--red-dim)" : "#4CAF7D18", color: selected.status === "active" ? "var(--red)" : "var(--green)" }}>
-                        {selected.status}
-                      </span>
-                      {selected.voiceReport && (
-                        <span style={{ padding: "4px 12px", borderRadius: 20, fontSize: 11, background: "#8B7FE818", color: "var(--purple)" }}>
-                          🎤 Voice Report
-                        </span>
-                      )}
-                    </div>
-                    <h2 style={{ fontSize: 26, fontWeight: 800, letterSpacing: "-0.02em", marginBottom: 6, color: "var(--text)" }}>
-                      {typeIcon[selected.type]} {selected.type} Emergency
-                    </h2>
-                    <div style={{ color: "var(--text2)", fontSize: 14 }}>
-                      Room {selected.room} · {selected.guestName} · {timeAgo(selected.timestamp)}
-                    </div>
-                  </div>
-                  {selected.status === "active" && (
-                    <button onClick={() => resolve(selected.id)} disabled={resolving} style={{
-                      padding: "10px 22px",
-                      background: resolving ? "var(--bg3)" : "var(--green)",
-                      color: resolving ? "var(--text3)" : "#fff",
-                      border: "none", borderRadius: 10, fontSize: 13, fontWeight: 700,
-                      cursor: resolving ? "not-allowed" : "pointer",
-                      display: "flex", alignItems: "center", gap: 8, flexShrink: 0, whiteSpace: "nowrap"
-                    }}>
-                      {resolving ? <><div className="spinner" />Resolving...</> : "Mark Resolved ✓"}
-                    </button>
-                  )}
-                </div>
-
-                {/* AI Briefing */}
-                <div style={{ background: "#8B7FE810", border: "1px solid #8B7FE830", borderRadius: 14, padding: 20, marginBottom: 16 }}>
-                  <div style={{ fontSize: 10, color: "var(--purple)", letterSpacing: "0.12em", marginBottom: 10, fontFamily: "'DM Mono',monospace", display: "flex", alignItems: "center", gap: 6 }}>
-                    <div style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--purple)", animation: "pulse 2s infinite" }} />
-                    GEMINI AI BRIEFING
-                  </div>
-                  <div style={{ fontSize: 15, color: "var(--text)", lineHeight: 1.7, marginBottom: 14 }}>{selected.briefing}</div>
-                  <div style={{ display: "flex", alignItems: "flex-start", gap: 10, background: "var(--red-dim)", border: "1px solid var(--red-border)", borderRadius: 10, padding: "10px 14px" }}>
-                    <span style={{ color: "var(--red)", fontSize: 16, flexShrink: 0 }}>⚡</span>
-                    <span style={{ fontSize: 14, color: "var(--text)", fontWeight: 600, wordBreak: "break-word" }}>{selected.action}</span>
-                  </div>
-                </div>
-
-                {/* Info grid */}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 16 }}>
-                  <div style={{ background: "var(--bg2)", border: "1px solid var(--border)", borderRadius: 12, padding: 16, boxShadow: "var(--card-shadow)" }}>
-                    <div style={{ fontSize: 9, color: "var(--text3)", letterSpacing: "0.1em", marginBottom: 10, fontFamily: "'DM Mono',monospace" }}>RESPONDERS</div>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                      {(selected.responders || ["Security"]).map(r => (
-                        <span key={r} style={{ padding: "3px 10px", background: "#4B8FE218", color: "var(--blue)", borderRadius: 20, fontSize: 12 }}>{r}</span>
-                      ))}
-                    </div>
-                  </div>
-                  <div style={{ background: "var(--bg2)", border: "1px solid var(--border)", borderRadius: 12, padding: 16, boxShadow: "var(--card-shadow)" }}>
-                    <div style={{ fontSize: 9, color: "var(--text3)", letterSpacing: "0.1em", marginBottom: 10, fontFamily: "'DM Mono',monospace" }}>RESPONSE ETA</div>
-                    <div style={{ fontSize: 28, fontWeight: 800, color: "var(--amber)", fontFamily: "'DM Mono',monospace" }}>
-                      {selected.estimatedMinutes || 5}<span style={{ fontSize: 13, color: "var(--text3)" }}> min</span>
-                    </div>
-                  </div>
-                  <div style={{ background: "var(--bg2)", border: "1px solid var(--border)", borderRadius: 12, padding: 16, boxShadow: "var(--card-shadow)" }}>
-                    <div style={{ fontSize: 9, color: "var(--text3)", letterSpacing: "0.1em", marginBottom: 10, fontFamily: "'DM Mono',monospace" }}>SEVERITY</div>
-                    <div style={{ fontSize: 28, fontWeight: 800, color: sevColor[selected.severity], fontFamily: "'DM Mono',monospace" }}>
-                      {selected.severity}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Voice / Guest message */}
-                <VoiceMessageBlock inc={selected} />
-
-                {/* AI Report */}
-                <div style={{ background: "var(--bg2)", border: "1px solid var(--border)", borderRadius: 12, padding: 20, boxShadow: "var(--card-shadow)" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
-                    <div style={{ fontSize: 9, color: "var(--text3)", letterSpacing: "0.1em", fontFamily: "'DM Mono',monospace" }}>AI INCIDENT REPORT</div>
-                    <button onClick={() => generateReport(selected)} disabled={reportLoading} style={{ padding: "6px 14px", background: "transparent", border: "1px solid var(--border2)", borderRadius: 8, color: "var(--text2)", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: "'Syne',sans-serif" }}>
-                      {reportLoading ? <><div className="spinner" style={{ width: 12, height: 12 }} />Generating...</> : "Generate with AI ◆"}
-                    </button>
-                  </div>
-                  {report ? (
-                    <div style={{ fontSize: 13, color: "var(--text2)", lineHeight: 1.9, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{report}</div>
-                  ) : (
-                    <div style={{ textAlign: "center", color: "var(--text3)", padding: "24px 0", fontSize: 13 }}>
-                      Click "Generate with AI" to create a formal incident report
-                    </div>
-                  )}
-                </div>
-
+              <div style={{ maxWidth: 680 }}>
+                <DetailContent inc={selected} mobile={false} />
               </div>
             )}
           </div>
+
         </div>
       )}
     </div>
