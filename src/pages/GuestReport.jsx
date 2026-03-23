@@ -5,29 +5,29 @@ import ThemeToggle from "../components/ThemeToggle";
 import LanguageSelector from "../components/LanguageSelector";
 import { useLanguage } from "../context/LanguageContext";
 
-const GEMINI_KEY    = import.meta.env.VITE_GEMINI_KEY;
-const CLOUD_NAME    = "dsk8xiopk";
+const GEMINI_KEY = import.meta.env.VITE_GEMINI_KEY;
+const CLOUD_NAME = "dsk8xiopk";
 const UPLOAD_PRESET = "nexus_voices";
 
 export default function GuestReport() {
   const { t } = useLanguage();
-  const [step, setStep]                   = useState(1);
-  const [type, setType]                   = useState("");
-  const [message, setMessage]             = useState("");
-  const [room, setRoom]                   = useState("");
-  const [name, setName]                   = useState("");
-  const [submitted, setSubmitted]         = useState(false);
-  const [loading, setLoading]             = useState(false);
-  const [mounted, setMounted]             = useState(false);
-  const [recording, setRecording]         = useState(false);
+  const [step, setStep] = useState(1);
+  const [type, setType] = useState("");
+  const [message, setMessage] = useState("");
+  const [room, setRoom] = useState("");
+  const [name, setName] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [recording, setRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
-  const [audioBlob, setAudioBlob]         = useState(null);
-  const [audioURL, setAudioURL]           = useState(null);
-  const [processing, setProcessing]       = useState(false);
-  const [voiceMode, setVoiceMode]         = useState(false);
-  const mediaRecorderRef                  = useRef(null);
-  const chunksRef                         = useRef([]);
-  const timerRef                          = useRef(null);
+  const [audioBlob, setAudioBlob] = useState(null);
+  const [audioURL, setAudioURL] = useState(null);
+  const [processing, setProcessing] = useState(false);
+  const [voiceMode, setVoiceMode] = useState(false);
+  const mediaRecorderRef = useRef(null);
+  const chunksRef = useRef([]);
+  const timerRef = useRef(null);
 
   useEffect(() => {
     const timer = setTimeout(() => setMounted(true), 50);
@@ -35,12 +35,12 @@ export default function GuestReport() {
   }, []);
 
   const CRISIS_TYPES = [
-    { id: "Medical",  icon: "♥", color: "#E8473F", label: t.medical,  desc: t.medicalDesc  },
-    { id: "Fire",     icon: "▲", color: "#F0A500", label: t.fire,     desc: t.fireDesc     },
+    { id: "Medical", icon: "♥", color: "#E8473F", label: t.medical, desc: t.medicalDesc },
+    { id: "Fire", icon: "▲", color: "#F0A500", label: t.fire, desc: t.fireDesc },
     { id: "Security", icon: "◉", color: "#4B8FE2", label: t.security, desc: t.securityDesc },
-    { id: "Flood",    icon: "◈", color: "#4CAF7D", label: t.flood,    desc: t.floodDesc    },
-    { id: "Panic",    icon: "!", color: "#D4537E", label: t.panic,    desc: t.panicDesc    },
-    { id: "Other",    icon: "…", color: "#7e7d8f", label: t.other,    desc: t.otherDesc    },
+    { id: "Flood", icon: "◈", color: "#4CAF7D", label: t.flood, desc: t.floodDesc },
+    { id: "Panic", icon: "!", color: "#D4537E", label: t.panic, desc: t.panicDesc },
+    { id: "Other", icon: "…", color: "#7e7d8f", label: t.other, desc: t.otherDesc },
   ];
 
   const selectedType = CRISIS_TYPES.find(ct => ct.id === type);
@@ -102,18 +102,26 @@ export default function GuestReport() {
     if (!audioBlob || !room) return;
     setProcessing(true);
     try {
-      // Upload to Cloudinary
-      const formData = new FormData();
-      formData.append("file", audioBlob, "voice-report.webm");
-      formData.append("upload_preset", UPLOAD_PRESET);
-      formData.append("folder", "voice-reports");
+      let audioDownloadURL = null;
 
-      const uploadRes  = await fetch(
-        `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/video/upload`,
-        { method: "POST", body: formData }
-      );
-      const uploadData      = await uploadRes.json();
-      const audioDownloadURL = uploadData.secure_url;
+      // Try Cloudinary upload
+      try {
+        const formData = new FormData();
+        formData.append("file", audioBlob, "voice-report.webm");
+        formData.append("upload_preset", UPLOAD_PRESET);
+        formData.append("folder", "voice-reports");
+
+        const uploadRes = await fetch(
+          `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/video/upload`,
+          { method: "POST", body: formData }
+        );
+        const uploadData = await uploadRes.json();
+        if (uploadData.secure_url) {
+          audioDownloadURL = uploadData.secure_url;
+        }
+      } catch (uploadErr) {
+        console.warn("Audio upload failed, continuing without audio URL:", uploadErr);
+      }
 
       // Send to Gemini
       const base64 = await new Promise((resolve, reject) => {
@@ -124,7 +132,7 @@ export default function GuestReport() {
       });
 
       const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -140,11 +148,11 @@ export default function GuestReport() {
                 },
                 {
                   text: `This is an emergency voice message from a hotel guest in room ${room}.
-                  1. Transcribe what they said.
-                  2. Identify the crisis type from: Medical, Fire, Security, Flood, Panic, Other.
-                  3. Generate a staff briefing and immediate action.
-                  Return ONLY raw JSON, no markdown:
-                  {"transcription":"what they said","crisis_type":"Medical","severity":"P1","briefing":"one sentence for staff","action":"immediate action","responders":["Security"],"estimated_minutes":5}`
+                1. Transcribe what they said.
+                2. Identify the crisis type from: Medical, Fire, Security, Flood, Panic, Other.
+                3. Generate a staff briefing and immediate action.
+                Return ONLY raw JSON, no markdown:
+                {"transcription":"what they said","crisis_type":"Medical","severity":"P1","briefing":"one sentence for staff","action":"immediate action","responders":["Security"],"estimated_minutes":5}`
                 }
               ]
             }],
@@ -154,8 +162,8 @@ export default function GuestReport() {
       );
 
       if (!res.ok) throw new Error("API error");
-      const data    = await res.json();
-      const raw     = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+      const data = await res.json();
+      const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
       const cleaned = raw.replace(/```json|```/g, "").trim();
 
       let result = {
@@ -167,9 +175,10 @@ export default function GuestReport() {
         responders: ["Security"],
         estimated_minutes: 5
       };
-      try { result = JSON.parse(cleaned); } catch (e) {}
+      try { result = JSON.parse(cleaned); } catch (e) { }
 
-      await addDoc(collection(db, "incidents"), {
+      // Build incident object — only add audioURL if it exists
+      const incidentData = {
         room,
         type: result.crisis_type || "Panic",
         message: result.transcription || "Voice emergency",
@@ -181,10 +190,15 @@ export default function GuestReport() {
         estimatedMinutes: result.estimated_minutes || 5,
         status: "active",
         voiceReport: true,
-        audioURL: audioDownloadURL,
         timestamp: serverTimestamp()
-      });
+      };
 
+      // Only add audioURL if upload succeeded
+      if (audioDownloadURL) {
+        incidentData.audioURL = audioDownloadURL;
+      }
+
+      await addDoc(collection(db, "incidents"), incidentData);
       setSubmitted(true);
 
     } catch (err) {
@@ -228,7 +242,7 @@ export default function GuestReport() {
         }
       );
       if (!aiRes.ok) throw new Error("API error");
-      const aiData  = await aiRes.json();
+      const aiData = await aiRes.json();
       const rawText = aiData?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
       const cleaned = rawText.replace(/```json|```/g, "").trim();
       let aiJson = {
@@ -236,7 +250,7 @@ export default function GuestReport() {
         action: "Respond immediately.",
         responders: ["Security"], estimated_minutes: 5
       };
-      try { aiJson = JSON.parse(cleaned); } catch (e) {}
+      try { aiJson = JSON.parse(cleaned); } catch (e) { }
 
       await addDoc(collection(db, "incidents"), {
         room, type, message,
@@ -272,7 +286,7 @@ export default function GuestReport() {
         <div style={{ background: "var(--bg2)", border: "1px solid var(--border)", borderRadius: 16, padding: 20, maxWidth: 300, width: "100%", boxShadow: "var(--card-shadow)" }}>
           <div style={{ fontSize: 10, color: "var(--text3)", letterSpacing: "0.1em", marginBottom: 12, fontFamily: "'DM Mono',monospace" }}>{t.emergencyContacts}</div>
           {[
-            { label: t.reception,        val: "0"   },
+            { label: t.reception, val: "0" },
             { label: t.nationalEmergency, val: "112" },
           ].map(c => (
             <div key={c.label} style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid var(--border)" }}>
@@ -319,7 +333,7 @@ export default function GuestReport() {
           {step === 1 && !voiceMode && (
             <div style={{ animation: "fadeUp 0.35s ease" }}>
               {[
-                { label: t.yourName,   placeholder: t.namePlaceholder, val: name, set: setName },
+                { label: t.yourName, placeholder: t.namePlaceholder, val: name, set: setName },
                 { label: t.roomNumber, placeholder: t.roomPlaceholder, val: room, set: setRoom },
               ].map(f => (
                 <div key={f.label} style={{ marginBottom: 16 }}>
