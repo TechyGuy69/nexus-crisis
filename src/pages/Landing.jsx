@@ -19,22 +19,18 @@ export default function Landing() {
     return () => { clearTimeout(timer); window.removeEventListener("resize", handler); };
   }, []);
 
-  const FEATURES = [
-    { icon: "◉", title: "Instant Detection",  color: "#E8473F",
-      desc: "Guest scans QR, selects crisis. Gemini classifies severity and generates staff briefing in under 2 seconds." },
-    { icon: "⬡", title: "Live Coordination",  color: "#4B8FE2",
-      desc: "Real-time venue map with crisis pins. Auto-assigned responders. Every staff member sees the same picture." },
-    { icon: "◈", title: "EMS Handoff",        color: "#F0A500",
-      desc: "One tap sends a structured briefing to emergency services. No verbal relay. No information loss." },
-    { icon: "▲", title: "Post-Incident AI",   color: "#4CAF7D",
-      desc: "AI-generated reports. Analytics dashboard. Guest feedback. Every crisis makes the system smarter." },
-  ];
-
   const STATS = [
     { val: "<90s", label: t.avgResponse    },
     { val: "AI",   label: t.geminiPowered  },
     { val: "24/7", label: t.monitoring     },
     { val: "0",    label: t.infoLost       },
+  ];
+
+  const FEATURES = [
+    { icon: "◉", title: t.feature1Title, color: "#E8473F", desc: t.feature1Desc },
+    { icon: "⬡", title: t.feature2Title, color: "#4B8FE2", desc: t.feature2Desc },
+    { icon: "◈", title: t.feature3Title, color: "#F0A500", desc: t.feature3Desc },
+    { icon: "▲", title: t.feature4Title, color: "#4CAF7D", desc: t.feature4Desc },
   ];
 
   return (
@@ -55,6 +51,7 @@ export default function Landing() {
         backgroundSize: isMobile ? "40px 40px" : "60px 60px"
       }} />
 
+      {/* Nav */}
       <nav style={{
         position: "relative", zIndex: 10,
         display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -84,12 +81,14 @@ export default function Landing() {
         </div>
       </nav>
 
+      {/* Hero */}
       <div style={{
         position: "relative", zIndex: 1,
         maxWidth: 900, margin: "0 auto",
         padding: isMobile ? "48px 20px 40px" : "80px 40px 60px",
         textAlign: "center"
       }}>
+        {/* Badge */}
         <div style={{
           display: "inline-flex", alignItems: "center", gap: 8,
           background: "var(--red-dim)", border: "1px solid var(--red-border)",
@@ -103,6 +102,7 @@ export default function Landing() {
           </span>
         </div>
 
+        {/* Headline */}
         <h1 style={{
           fontSize: isMobile ? "clamp(34px,10vw,46px)" : "clamp(48px,7vw,80px)",
           fontWeight: 800, lineHeight: 1.05, letterSpacing: "-0.03em", marginBottom: 20,
@@ -110,9 +110,10 @@ export default function Landing() {
           opacity: mounted ? 1 : 0,
           animation: mounted ? "fadeUp 0.5s 0.1s ease both" : "none"
         }}>
-          {t.tagline.split("Don't")[0]}<br />
-          <span style={{ color: "transparent", WebkitTextStroke: "1px var(--red)" }}>Don't</span>
-          <span style={{ color: "var(--red)" }}> waste any.</span>
+          {t.headline1}<br />
+          <span style={{ color: "transparent", WebkitTextStroke: "1px var(--red)" }}>{t.headline2}</span>
+          <span style={{ color: "var(--red)" }}> {t.headline3}</span><br />
+          {t.headline4}
         </h1>
 
         <p style={{
@@ -122,6 +123,7 @@ export default function Landing() {
           animation: mounted ? "fadeUp 0.5s 0.15s ease both" : "none"
         }}>{t.description}</p>
 
+        {/* CTAs */}
         <div style={{
           display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap",
           marginBottom: isMobile ? 40 : 64,
@@ -142,6 +144,7 @@ export default function Landing() {
           }}>{t.staffDashboard}</button>
         </div>
 
+        {/* Stats */}
         <div style={{
           display: "grid", gridTemplateColumns: "repeat(4,1fr)",
           gap: 1, background: "var(--border)",
@@ -160,6 +163,7 @@ export default function Landing() {
         </div>
       </div>
 
+      {/* Features */}
       <div style={{
         position: "relative", zIndex: 1,
         maxWidth: 900, margin: "0 auto",
@@ -199,6 +203,7 @@ export default function Landing() {
         </div>
       </div>
 
+      {/* Bottom CTA */}
       <div style={{
         position: "relative", zIndex: 1, textAlign: "center",
         padding: isMobile ? "40px 20px 60px" : "60px 40px 80px",

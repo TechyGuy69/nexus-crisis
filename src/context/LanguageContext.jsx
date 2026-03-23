@@ -13,6 +13,23 @@ export const translations = {
     report: "+ Report",
     signOut: "Sign Out",
 
+    // Headline parts
+    headline1: "Every second",
+    headline2: "counts.",
+    headline3: "Don't",
+    headline4: "waste any.",
+
+    // Feature titles and descriptions
+    feature1Title: "Instant Detection",
+    feature1Desc: "Guest scans QR, selects crisis. Gemini classifies severity and generates staff briefing in under 2 seconds.",
+    feature2Title: "Live Coordination",
+    feature2Desc: "Real-time venue map with crisis pins. Auto-assigned responders. Every staff member sees the same picture.",
+    feature3Title: "EMS Handoff",
+    feature3Desc: "One tap sends a structured briefing to emergency services. No verbal relay. No information loss.",
+    feature4Title: "Post-Incident AI",
+    feature4Desc: "AI-generated reports. Analytics dashboard. Guest feedback. Every crisis makes the system smarter.",
+
+
     // Landing
     tagline: "Every second counts. Don't waste any.",
     description: "AI-powered crisis coordination that eliminates fragmented communication between guests, staff, and emergency services.",
@@ -252,6 +269,18 @@ export const translations = {
     eta: "अनुमानित समय",
     callEmergency: "📞 112 पर कॉल करें",
     markAsResolved: "हल हुआ ✓",
+    headline1: "हर सेकंड",
+    headline2: "मायने रखता है।",
+    headline3: "एक भी",
+    headline4: "बर्बाद मत करो।",
+    feature1Title: "तत्काल पहचान",
+    feature1Desc: "अतिथि QR स्कैन करता है, संकट चुनता है। Gemini 2 सेकंड में गंभीरता वर्गीकृत करता है।",
+    feature2Title: "लाइव समन्वय",
+    feature2Desc: "संकट पिन के साथ रीयल-टाइम वेन्यू मैप। स्वचालित रूप से असाइन किए गए प्रतिक्रियाकर्ता।",
+    feature3Title: "EMS हैंडऑफ",
+    feature3Desc: "एक टैप से आपातकालीन सेवाओं को संरचित ब्रीफिंग भेजता है। कोई मौखिक रिले नहीं।",
+    feature4Title: "घटना के बाद AI",
+    feature4Desc: "AI-जनित रिपोर्ट। एनालिटिक्स डैशबोर्ड। अतिथि प्रतिक्रिया। हर संकट सिस्टम को स्मार्ट बनाता है।",
   },
 
   bn: {
@@ -370,6 +399,18 @@ export const translations = {
     eta: "আনুমানিক সময়",
     callEmergency: "📞 112 কল করুন",
     markAsResolved: "সমাধান হয়েছে ✓",
+    headline1: "প্রতিটি সেকেন্ড",
+    headline2: "গুরুত্বপূর্ণ।",
+    headline3: "একটিও",
+    headline4: "নষ্ট করবেন না।",
+    feature1Title: "তাৎক্ষণিক সনাক্তকরণ",
+    feature1Desc: "অতিথি QR স্ক্যান করেন, সংকট বেছে নেন। Gemini ২ সেকেন্ডে তীব্রতা শ্রেণীবদ্ধ করে।",
+    feature2Title: "লাইভ সমন্বয়",
+    feature2Desc: "ক্রাইসিস পিন সহ রিয়েল-টাইম ভেন্যু ম্যাপ। স্বয়ংক্রিয়ভাবে নিযুক্ত প্রতিক্রিয়াকারী।",
+    feature3Title: "EMS হ্যান্ডঅফ",
+    feature3Desc: "এক ট্যাপে জরুরি সেবায় কাঠামোগত ব্রিফিং পাঠায়। কোনো মৌখিক রিলে নেই।",
+    feature4Title: "ঘটনা পরবর্তী AI",
+    feature4Desc: "AI-জেনারেটেড রিপোর্ট। অ্যানালিটিক্স ড্যাশবোর্ড। অতিথির মতামত।",
   },
 
   ta: {
@@ -488,6 +529,18 @@ export const translations = {
     eta: "மதிப்பிடப்பட்ட நேரம்",
     callEmergency: "📞 112 அழைக்கவும்",
     markAsResolved: "தீர்க்கப்பட்டது ✓",
+    headline1: "ஒவ்வொரு நொடியும்",
+    headline2: "முக்கியம்.",
+    headline3: "எதையும்",
+    headline4: "வீணாக்காதீர்கள்.",
+    feature1Title: "உடனடி கண்டறிதல்",
+    feature1Desc: "விருந்தினர் QR ஸ்கேன் செய்கிறார், நெருக்கடியை தேர்ந்தெடுக்கிறார். Gemini 2 வினாடியில் தீவிரத்தை வகைப்படுத்துகிறது.",
+    feature2Title: "நேரடி ஒருங்கிணைப்பு",
+    feature2Desc: "நெருக்கடி பின்களுடன் நிகழ்நேர வேதி வரைபடம். தானாக நியமிக்கப்பட்ட பதிலளிப்பவர்கள்.",
+    feature3Title: "EMS கைமாற்றம்",
+    feature3Desc: "ஒரு தட்டுதலில் அவசர சேவைகளுக்கு கட்டமைக்கப்பட்ட விளக்கம் அனுப்புகிறது.",
+    feature4Title: "சம்பவத்திற்கு பிந்தைய AI",
+    feature4Desc: "AI-உருவாக்கிய அறிக்கைகள். பகுப்பாய்வு டாஷ்போர்டு. விருந்தினர் கருத்து.",
   },
 
   te: {
@@ -606,6 +659,18 @@ export const translations = {
     eta: "అంచనా సమయం",
     callEmergency: "📞 112 కి కాల్ చేయండి",
     markAsResolved: "పరిష్కరించబడింది ✓",
+    headline1: "ప్రతి సెకనూ",
+    headline2: "ముఖ్యమైనది.",
+    headline3: "ఒక్కటీ",
+    headline4: "వృధా చేయకండి.",
+    feature1Title: "తక్షణ గుర్తింపు",
+    feature1Desc: "అతిథి QR స్కాన్ చేస్తారు, సంక్షోభం ఎంచుకుంటారు. Gemini 2 సెకన్లలో తీవ్రతను వర్గీకరిస్తుంది.",
+    feature2Title: "లైవ్ సమన్వయం",
+    feature2Desc: "క్రైసిస్ పిన్‌లతో రియల్-టైమ్ వేదిక మ్యాప్. స్వయంచాలకంగా కేటాయించిన స్పందించేవారు.",
+    feature3Title: "EMS హ్యాండాఫ్",
+    feature3Desc: "ఒక్క తాకడంతో అత్యవసర సేవలకు నిర్మాణాత్మక బ్రీఫింగ్ పంపుతుంది.",
+    feature4Title: "సంఘటన తర్వాత AI",
+    feature4Desc: "AI-రూపొందించిన నివేదికలు. అనలిటిక్స్ డాష్‌బోర్డ్. అతిథి అభిప్రాయం.",
   }
 };
 
