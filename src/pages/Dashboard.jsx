@@ -1,13 +1,28 @@
 import { useEffect, useState } from "react";
 import { db } from "../firebase";
-import { collection, onSnapshot, orderBy, query, doc, updateDoc } from "firebase/firestore";
+import { collection, onSnapshot, orderBy, query, doc, updateDoc, setDoc, getDoc } from "firebase/firestore";
 import { useIncidentAlert } from "../hooks/useIncidentAlert";
+import { auth } from "../firebase";
+import { onAuthStateChanged } from "firebase/auth";
 
-const GEMINI_KEY   = import.meta.env.VITE_GEMINI_KEY;
-const sevColor     = { P1: "#E8473F", P2: "#F0A500", P3: "#4B8FE2" };
-const sevBg        = { P1: "#E8473F18", P2: "#F0A50018", P3: "#4B8FE218" };
-const typeIcon     = { Medical: "♥", Fire: "▲", Security: "◉", Flood: "◈", Panic: "!", Other: "…" };
+const GEMINI_KEY    = import.meta.env.VITE_GEMINI_KEY;
+const sevColor      = { P1: "#E8473F", P2: "#F0A500", P3: "#4B8FE2" };
+const sevBg         = { P1: "#E8473F18", P2: "#F0A50018", P3: "#4B8FE218" };
+const typeIcon      = { Medical: "♥", Fire: "▲", Security: "◉", Flood: "◈", Panic: "!", Other: "…" };
 const priorityOrder = { P1: 0, P2: 1, P3: 2 };
+
+const STAFF_LIST = [
+  { id: "sayan@byteclubhotel.com", name: "Sayan", role: "Security"  },
+  { id: "sohini@byteclubhotel.com", name: "Sohini", role: "Medical"   },
+  { id: "debasmita@byteclubhotel.com", name: "Debasmita", role: "Reception" },
+  { id: "usnish@byteclubhotel.com", name: "Usnish", role: "Manager"   },
+];
+
+const STATUS_CONFIG = {
+  active:      { label: "Pending",     color: "#F0A500", bg: "#F0A50020", icon: "⏳" },
+  inprogress:  { label: "In Progress", color: "#4B8FE2", bg: "#4B8FE220", icon: "🔄" },
+  resolved:    { label: "Resolved",    color: "#4CAF7D", bg: "#4CAF7D20", icon: "✓"  },
+};
 
 function timeAgo(ts) {
   if (!ts) return "just now";
@@ -50,6 +65,8 @@ export default function Dashboard() {
   const [showDetail, setShowDetail]       = useState(false);
   const [isMobile, setIsMobile]           = useState(window.innerWidth < 768);
   const [clock, setClock]                 = useState(new Date().toLocaleTimeString());
+  const [staffStatus, setStaffStatus]     = useState({});
+  const [currentUser, setCurrentUser]     = useState(null);
 
   useIncidentAlert(incidents);
 
@@ -63,6 +80,37 @@ export default function Dashboard() {
     const timer = setInterval(() => setClock(new Date().toLocaleTimeString()), 1000);
     return () => clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    return onAuthStateChanged(auth, u => setCurrentUser(u));
+  }, []);
+
+  // Listen to staff status in real time
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, "staff_status"), snap => {
+      const status = {};
+      snap.docs.forEach(d => { status[d.id] = d.data(); });
+      setStaffStatus(status);
+    });
+    return unsub;
+  }, []);
+
+  // Update own status on load
+  useEffect(() => {
+    if (!currentUser) return;
+    const staffRef = doc(db, "staff_status", currentUser.email);
+    getDoc(staffRef).then(d => {
+      if (!d.exists()) {
+        const staffInfo = STAFF_LIST.find(s => s.id === currentUser.email);
+        setDoc(staffRef, {
+          name:   staffInfo?.name || currentUser.email.split("@")[0],
+          role:   staffInfo?.role || "Staff",
+          status: "free",
+          email:  currentUser.email
+        });
+      }
+    });
+  }, [currentUser]);
 
   useEffect(() => {
     const q = query(collection(db, "incidents"), orderBy("timestamp", "desc"));
@@ -85,9 +133,50 @@ export default function Dashboard() {
     setReport("");
   }
 
+  // Find a free staff member and assign
+  async function assignFreeStaff(incidentId) {
+    const freeStaff = STAFF_LIST.find(s => {
+      const status = staffStatus[s.id]?.status;
+      return status === "free" || !status;
+    });
+
+    if (freeStaff) {
+      await updateDoc(doc(db, "incidents", incidentId), {
+        assignedTo: freeStaff.name,
+        assignedEmail: freeStaff.id,
+        status: "inprogress"
+      });
+      await setDoc(doc(db, "staff_status", freeStaff.id), {
+        ...staffStatus[freeStaff.id],
+        status: "busy",
+        assignedIncident: incidentId
+      }, { merge: true });
+
+      // Update selected
+      setSelected(prev => prev ? { ...prev, status: "inprogress", assignedTo: freeStaff.name } : prev);
+    } else {
+      alert("All staff are currently busy. Please assign manually.");
+    }
+  }
+
+  async function updateIncidentStatus(id, newStatus) {
+    await updateDoc(doc(db, "incidents", id), { status: newStatus });
+    setSelected(prev => prev ? { ...prev, status: newStatus } : prev);
+
+    // If resolved — free up assigned staff
+    if (newStatus === "resolved") {
+      const inc = incidents.find(i => i.id === id);
+      if (inc?.assignedEmail) {
+        await setDoc(doc(db, "staff_status", inc.assignedEmail), {
+          status: "free", assignedIncident: null
+        }, { merge: true });
+      }
+    }
+  }
+
   async function resolve(id) {
     setResolving(true);
-    await updateDoc(doc(db, "incidents", id), { status: "resolved" });
+    await updateIncidentStatus(id, "resolved");
     const feedbackUrl = `${window.location.origin}/feedback?id=${id}`;
     await navigator.clipboard.writeText(feedbackUrl).catch(() => {});
     alert(`Resolved! Feedback link copied:\n${feedbackUrl}`);
@@ -97,6 +186,15 @@ export default function Dashboard() {
     if (isMobile) setShowDetail(false);
   }
 
+  async function toggleMyStatus() {
+    if (!currentUser) return;
+    const current = staffStatus[currentUser.email]?.status || "free";
+    const next    = current === "free" ? "busy" : "free";
+    await setDoc(doc(db, "staff_status", currentUser.email), {
+      status: next
+    }, { merge: true });
+  }
+
   async function generateReport(inc) {
     setReportLoading(true);
     setReport("");
@@ -104,7 +202,6 @@ export default function Dashboard() {
       const now     = new Date();
       const dateStr = now.toLocaleDateString("en-IN", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
       const timeStr = now.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
-
       const res = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`,
         {
@@ -114,31 +211,21 @@ export default function Dashboard() {
             contents: [{
               parts: [{
                 text: `Write a formal hotel incident report for Byte Club Pvt Ltd.
-
-Use these exact details — do not use placeholders like [Date] or [Time]:
+Use these exact details:
 - Date: ${dateStr}
 - Time: ${timeStr}
 - Room: ${inc.room}
 - Guest Name: ${inc.guestName}
 - Incident Type: ${inc.type}
 - Severity: ${inc.severity}
+- Assigned To: ${inc.assignedTo || "Unassigned"}
 - Description: "${inc.message}"
 - AI Briefing: "${inc.briefing}"
 - Action Taken: "${inc.action}"
 - Responders: ${(inc.responders || ["Staff"]).join(", ")}
 - Estimated Response Time: ${inc.estimatedMinutes || 5} minutes
-
-Write exactly 4 paragraphs with these plain text headings (no markdown, no asterisks, no hashtags, no bold):
-
-1. SUMMARY
-2. TIMELINE
-3. ACTIONS TAKEN
-4. RECOMMENDATIONS
-
-Important rules:
-- Use plain text only — no markdown, no ** bold **, no ## headers, no bullet points with *
-- Use the actual date and time provided, never write [Date] or [Time]
-- Keep it professional and concise`
+Write exactly 4 paragraphs: SUMMARY, TIMELINE, ACTIONS TAKEN, RECOMMENDATIONS.
+Plain text only — no markdown, no asterisks, no hashtags.`
               }]
             }]
           })
@@ -153,9 +240,79 @@ Important rules:
     }
   }
 
-  const active    = incidents.filter(i => i.status === "active");
+  const active    = incidents.filter(i => i.status !== "resolved");
   const resolved  = incidents.filter(i => i.status === "resolved");
   const displayed = sortByPriority(filter === "active" ? active : resolved);
+
+  // Staff panel
+  function StaffPanel() {
+    return (
+      <div style={{
+        background: "var(--bg2)", border: "1px solid var(--border)",
+        borderRadius: 12, padding: 14, marginBottom: 14,
+        boxShadow: "var(--card-shadow)"
+      }}>
+        <div style={{
+          fontSize: 9, color: "var(--text3)", letterSpacing: "0.1em",
+          marginBottom: 12, fontFamily: "'DM Mono',monospace",
+          display: "flex", justifyContent: "space-between", alignItems: "center"
+        }}>
+          <span>STAFF STATUS</span>
+          {currentUser && (
+            <button onClick={toggleMyStatus} style={{
+              fontSize: 10, padding: "3px 10px",
+              background: staffStatus[currentUser.email]?.status === "busy" ? "#E8473F22" : "#4CAF7D22",
+              color: staffStatus[currentUser.email]?.status === "busy" ? "#E8473F" : "#4CAF7D",
+              border: `1px solid ${staffStatus[currentUser.email]?.status === "busy" ? "#E8473F44" : "#4CAF7D44"}`,
+              borderRadius: 20, cursor: "pointer", fontFamily: "'Syne',sans-serif"
+            }}>
+              Set me as {staffStatus[currentUser.email]?.status === "busy" ? "Free" : "Busy"}
+            </button>
+          )}
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {STAFF_LIST.map(staff => {
+            const s      = staffStatus[staff.id];
+            const isBusy = s?.status === "busy";
+            const isMe   = currentUser?.email === staff.id;
+            return (
+              <div key={staff.id} style={{
+                display: "flex", alignItems: "center", gap: 10,
+                padding: "8px 10px", borderRadius: 8,
+                background: isMe ? "var(--red-dim)" : "var(--bg3)",
+                border: `1px solid ${isMe ? "var(--red-border)" : "var(--border)"}`
+              }}>
+                <div style={{
+                  width: 28, height: 28, borderRadius: "50%",
+                  background: isBusy ? "#E8473F22" : "#4CAF7D22",
+                  border: `2px solid ${isBusy ? "#E8473F" : "#4CAF7D"}`,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 11, fontWeight: 700, color: isBusy ? "#E8473F" : "#4CAF7D",
+                  flexShrink: 0
+                }}>
+                  {staff.name.charAt(staff.name.length - 1)}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text)", display: "flex", alignItems: "center", gap: 4 }}>
+                    {staff.name} {isMe && <span style={{ fontSize: 9, color: "var(--red)" }}>(you)</span>}
+                  </div>
+                  <div style={{ fontSize: 10, color: "var(--text3)" }}>{staff.role}</div>
+                </div>
+                <div style={{
+                  fontSize: 10, padding: "2px 8px", borderRadius: 20,
+                  background: isBusy ? "#E8473F18" : "#4CAF7D18",
+                  color: isBusy ? "#E8473F" : "#4CAF7D",
+                  fontWeight: 600, flexShrink: 0
+                }}>
+                  {isBusy ? "BUSY" : "FREE"}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
 
   function PriorityBanner() {
     if (filter !== "active" || displayed.length === 0) return null;
@@ -177,6 +334,7 @@ Important rules:
   }
 
   function IncidentCard({ inc, isMobileView = false }) {
+    const statusCfg = STATUS_CONFIG[inc.status] || STATUS_CONFIG.active;
     return (
       <div onClick={() => selectIncident(inc)} style={{
         padding: "14px 16px",
@@ -204,23 +362,27 @@ Important rules:
             }}>
               {inc.severity === "P1" ? "HIGH" : inc.severity === "P2" ? "MED" : "LOW"}
             </span>
-            <span style={{
-              fontSize: 10, padding: "2px 7px", borderRadius: 20,
-              background: sevBg[inc.severity] || "#88888818",
-              color: sevColor[inc.severity] || "var(--text2)",
-              fontFamily: "'DM Mono',monospace",
-            }}>{inc.severity}</span>
           </div>
         </div>
 
-        <div style={{
-          display: "flex", alignItems: "center",
-          justifyContent: "space-between", marginBottom: 5
-        }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 5 }}>
           <span style={{ fontSize: 11, color: "var(--text3)" }}>
             {inc.voiceReport && "🎤 "}{inc.guestName} · {timeAgo(inc.timestamp)}
           </span>
+          <span style={{
+            fontSize: 10, padding: "2px 8px", borderRadius: 20,
+            background: statusCfg.bg, color: statusCfg.color,
+            fontWeight: 600
+          }}>
+            {statusCfg.icon} {statusCfg.label}
+          </span>
         </div>
+
+        {inc.assignedTo && (
+          <div style={{ fontSize: 11, color: "var(--blue)", marginBottom: 4 }}>
+            👤 Assigned to {inc.assignedTo}
+          </div>
+        )}
 
         <div style={{ fontSize: 12, color: "var(--text2)", lineHeight: 1.4, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
           {inc.briefing}
@@ -238,19 +400,14 @@ Important rules:
   function VoiceMessageBlock({ inc }) {
     if (!inc.message) return null;
     return (
-      <div style={{
-        background: "var(--bg2)", border: "1px solid var(--border)",
-        borderRadius: 12, padding: 16, marginBottom: 16,
-        boxShadow: "var(--card-shadow)"
-      }}>
+      <div style={{ background: "var(--bg2)", border: "1px solid var(--border)", borderRadius: 12, padding: 16, marginBottom: 14, boxShadow: "var(--card-shadow)" }}>
         <div style={{ fontSize: 9, color: "var(--text3)", letterSpacing: "0.1em", marginBottom: 10, fontFamily: "'DM Mono',monospace" }}>
           {inc.voiceReport ? "VOICE MESSAGE" : "GUEST MESSAGE"}
         </div>
         {inc.voiceReport ? (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--purple)" }}>
-              <span>🎤</span>
-              <span>Guest reported via voice recording</span>
+              <span>🎤</span><span>Guest reported via voice recording</span>
             </div>
             {inc.audioURL && (
               <div style={{ background: "var(--bg3)", borderRadius: 10, padding: "10px 14px", border: "1px solid var(--border)" }}>
@@ -272,6 +429,7 @@ Important rules:
   }
 
   function DetailContent({ inc, mobile = false }) {
+    const statusCfg = STATUS_CONFIG[inc.status] || STATUS_CONFIG.active;
     return (
       <div>
         {mobile && (
@@ -281,56 +439,92 @@ Important rules:
         )}
 
         {/* Header */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: mobile ? 16 : 24, gap: 12, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: mobile ? 14 : 20, gap: 12, flexWrap: "wrap" }}>
           <div style={{ minWidth: 0 }}>
             <div style={{ display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
-              <span style={{
-                padding: "4px 12px", borderRadius: 20, fontSize: 11,
-                background: sevBg[inc.severity], color: sevColor[inc.severity],
-                fontFamily: "'DM Mono',monospace", fontWeight: 600
-              }}>{inc.severity}</span>
-              <span style={{
-                padding: "4px 12px", borderRadius: 20, fontSize: 11,
-                background: inc.severity === "P1" ? "#E8473F22" : inc.severity === "P2" ? "#F0A50022" : "#4B8FE222",
-                color: inc.severity === "P1" ? "#E8473F" : inc.severity === "P2" ? "#F0A500" : "#4B8FE2",
-                fontWeight: 700
-              }}>
-                {inc.severity === "P1" ? "🔴 HIGH PRIORITY" : inc.severity === "P2" ? "🟡 MEDIUM PRIORITY" : "🔵 LOW PRIORITY"}
+              <span style={{ padding: "4px 12px", borderRadius: 20, fontSize: 11, background: sevBg[inc.severity], color: sevColor[inc.severity], fontFamily: "'DM Mono',monospace", fontWeight: 600 }}>
+                {inc.severity}
               </span>
               <span style={{
-                padding: "4px 12px", borderRadius: 20, fontSize: 11,
-                background: inc.status === "active" ? "var(--red-dim)" : "#4CAF7D18",
-                color: inc.status === "active" ? "var(--red)" : "var(--green)"
-              }}>{inc.status}</span>
+                padding: "4px 12px", borderRadius: 20, fontSize: 11, fontWeight: 700,
+                background: inc.severity === "P1" ? "#E8473F22" : inc.severity === "P2" ? "#F0A50022" : "#4B8FE222",
+                color: inc.severity === "P1" ? "#E8473F" : inc.severity === "P2" ? "#F0A500" : "#4B8FE2",
+              }}>
+                {inc.severity === "P1" ? "🔴 HIGH" : inc.severity === "P2" ? "🟡 MEDIUM" : "🔵 LOW"}
+              </span>
+              <span style={{ padding: "4px 12px", borderRadius: 20, fontSize: 11, background: statusCfg.bg, color: statusCfg.color, fontWeight: 600 }}>
+                {statusCfg.icon} {statusCfg.label}
+              </span>
               {inc.voiceReport && (
-                <span style={{ padding: "4px 12px", borderRadius: 20, fontSize: 11, background: "#8B7FE818", color: "var(--purple)" }}>
-                  🎤 Voice
-                </span>
+                <span style={{ padding: "4px 12px", borderRadius: 20, fontSize: 11, background: "#8B7FE818", color: "var(--purple)" }}>🎤 Voice</span>
               )}
             </div>
-            <h2 style={{ fontSize: mobile ? 20 : 26, fontWeight: 800, letterSpacing: "-0.02em", marginBottom: 6, color: "var(--text)" }}>
+            <h2 style={{ fontSize: mobile ? 20 : 24, fontWeight: 800, letterSpacing: "-0.02em", marginBottom: 6, color: "var(--text)" }}>
               {typeIcon[inc.type]} {inc.type} Emergency
             </h2>
             <div style={{ color: "var(--text2)", fontSize: 13 }}>
               Room {inc.room} · {inc.guestName} · {timeAgo(inc.timestamp)}
             </div>
+            {inc.assignedTo && (
+              <div style={{ fontSize: 13, color: "var(--blue)", marginTop: 4 }}>
+                👤 Assigned to {inc.assignedTo}
+              </div>
+            )}
           </div>
-          {inc.status === "active" && (
-            <button onClick={() => resolve(inc.id)} disabled={resolving} style={{
-              padding: mobile ? "10px 16px" : "10px 22px",
-              background: resolving ? "var(--bg3)" : "var(--green)",
-              color: resolving ? "var(--text3)" : "#fff",
-              border: "none", borderRadius: 10, fontSize: 13, fontWeight: 700,
-              cursor: resolving ? "not-allowed" : "pointer",
-              display: "flex", alignItems: "center", gap: 8, flexShrink: 0, whiteSpace: "nowrap"
-            }}>
-              {resolving ? <><div className="spinner" />Resolving...</> : mobile ? "Resolved ✓" : "Mark Resolved ✓"}
-            </button>
-          )}
         </div>
 
+        {/* Status action buttons */}
+        {inc.status !== "resolved" && (
+          <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+            {!inc.assignedTo && (
+              <button onClick={() => assignFreeStaff(inc.id)} style={{
+                padding: "9px 16px", background: "#4B8FE222",
+                color: "#4B8FE2", border: "1px solid #4B8FE244",
+                borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: "pointer"
+              }}>
+                👤 Auto Assign Staff
+              </button>
+            )}
+            {inc.status === "active" && (
+              <button onClick={() => updateIncidentStatus(inc.id, "inprogress")} style={{
+                padding: "9px 16px", background: "#4B8FE222",
+                color: "#4B8FE2", border: "1px solid #4B8FE244",
+                borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: "pointer"
+              }}>
+                🔄 Mark In Progress
+              </button>
+            )}
+            {inc.status === "inprogress" && (
+              <button onClick={() => resolve(inc.id)} disabled={resolving} style={{
+                padding: "9px 16px",
+                background: resolving ? "var(--bg3)" : "#4CAF7D22",
+                color: resolving ? "var(--text3)" : "#4CAF7D",
+                border: "1px solid #4CAF7D44",
+                borderRadius: 10, fontSize: 13, fontWeight: 600,
+                cursor: resolving ? "not-allowed" : "pointer",
+                display: "flex", alignItems: "center", gap: 6
+              }}>
+                {resolving ? <><div className="spinner" />Resolving...</> : "✓ Mark Resolved"}
+              </button>
+            )}
+            {inc.status === "active" && (
+              <button onClick={() => resolve(inc.id)} disabled={resolving} style={{
+                padding: "9px 16px",
+                background: resolving ? "var(--bg3)" : "#4CAF7D22",
+                color: resolving ? "var(--text3)" : "#4CAF7D",
+                border: "1px solid #4CAF7D44",
+                borderRadius: 10, fontSize: 13, fontWeight: 600,
+                cursor: resolving ? "not-allowed" : "pointer",
+                display: "flex", alignItems: "center", gap: 6
+              }}>
+                {resolving ? <><div className="spinner" />Resolving...</> : "✓ Resolve Directly"}
+              </button>
+            )}
+          </div>
+        )}
+
         {/* AI Briefing */}
-        <div style={{ background: "#8B7FE810", border: "1px solid #8B7FE830", borderRadius: 14, padding: mobile ? 14 : 20, marginBottom: 14 }}>
+        <div style={{ background: "#8B7FE810", border: "1px solid #8B7FE830", borderRadius: 14, padding: mobile ? 14 : 18, marginBottom: 14 }}>
           <div style={{ fontSize: 10, color: "var(--purple)", letterSpacing: "0.12em", marginBottom: 10, fontFamily: "'DM Mono',monospace", display: "flex", alignItems: "center", gap: 6 }}>
             <div style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--purple)", animation: "pulse 2s infinite" }} />
             GEMINI AI BRIEFING
@@ -421,17 +615,13 @@ Important rules:
               <span style={{ fontSize: 11, color: "var(--red)", fontFamily: "'DM Mono',monospace" }}>
                 {active.length} ACTIVE
                 {active.filter(i => i.severity === "P1").length > 0 && (
-                  <span style={{ marginLeft: 6, fontWeight: 700 }}>
-                    · {active.filter(i => i.severity === "P1").length} P1
-                  </span>
+                  <span style={{ marginLeft: 6, fontWeight: 700 }}>· {active.filter(i => i.severity === "P1").length} P1</span>
                 )}
               </span>
             </div>
           )}
           {!isMobile && (
-            <div style={{ fontSize: 11, color: "var(--text3)", fontFamily: "'DM Mono',monospace" }}>
-              {clock}
-            </div>
+            <div style={{ fontSize: 11, color: "var(--text3)", fontFamily: "'DM Mono',monospace" }}>{clock}</div>
           )}
         </div>
       </div>
@@ -440,8 +630,6 @@ Important rules:
       {isMobile ? (
         <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", background: "var(--bg2)" }}>
           {!showDetail ? (
-
-            /* MOBILE LIST */
             <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", background: "var(--bg2)", overflowY: "auto" }}>
 
               {/* Stats */}
@@ -480,28 +668,18 @@ Important rules:
                   <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 14 }}>
                     {[1, 2, 3].map(i => (
                       <div key={i} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                        <Skeleton h={12} w="60%" />
-                        <Skeleton h={10} w="40%" />
-                        <Skeleton h={10} w="80%" />
+                        <Skeleton h={12} w="60%" /><Skeleton h={10} w="40%" /><Skeleton h={10} w="80%" />
                       </div>
                     ))}
                   </div>
                 ) : displayed.length === 0 ? (
-                  <div style={{ padding: 40, textAlign: "center", color: "var(--text3)", fontSize: 13 }}>
-                    No {filter} incidents
-                  </div>
+                  <div style={{ padding: 40, textAlign: "center", color: "var(--text3)", fontSize: 13 }}>No {filter} incidents</div>
                 ) : (
-                  <>
-                    <PriorityBanner />
-                    {displayed.map(inc => <IncidentCard key={inc.id} inc={inc} isMobileView={true} />)}
-                  </>
+                  <><PriorityBanner />{displayed.map(inc => <IncidentCard key={inc.id} inc={inc} isMobileView={true} />)}</>
                 )}
               </div>
             </div>
-
           ) : (
-
-            /* MOBILE DETAIL */
             <div style={{ flex: 1, minHeight: 0, overflowY: "auto", background: "var(--bg2)", padding: "16px 16px 40px" }}>
               {selected && <DetailContent inc={selected} mobile={true} />}
             </div>
@@ -513,7 +691,7 @@ Important rules:
         /* DESKTOP */
         <div style={{ display: "flex", flex: 1, overflow: "hidden", minHeight: 0 }}>
 
-          {/* DESKTOP SIDEBAR */}
+          {/* SIDEBAR */}
           <div style={{ width: 300, flexShrink: 0, borderRight: "1px solid var(--border)", display: "flex", flexDirection: "column", background: "var(--bg2)", minHeight: 0, transition: "background 0.3s" }}>
 
             {/* Stats */}
@@ -552,39 +730,81 @@ Important rules:
                 <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 14 }}>
                   {[1, 2, 3].map(i => (
                     <div key={i} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                      <Skeleton h={12} w="60%" />
-                      <Skeleton h={10} w="40%" />
-                      <Skeleton h={10} w="80%" />
+                      <Skeleton h={12} w="60%" /><Skeleton h={10} w="40%" /><Skeleton h={10} w="80%" />
                     </div>
                   ))}
                 </div>
               ) : displayed.length === 0 ? (
-                <div style={{ padding: 32, textAlign: "center", color: "var(--text3)", fontSize: 13 }}>
-                  No {filter} incidents
-                </div>
+                <div style={{ padding: 32, textAlign: "center", color: "var(--text3)", fontSize: 13 }}>No {filter} incidents</div>
               ) : (
-                <>
-                  <PriorityBanner />
-                  {displayed.map(inc => <IncidentCard key={inc.id} inc={inc} />)}
-                </>
+                <><PriorityBanner />{displayed.map(inc => <IncidentCard key={inc.id} inc={inc} />)}</>
               )}
             </div>
           </div>
 
-          {/* DESKTOP DETAIL */}
-          <div style={{ flex: 1, overflowY: "auto", background: "var(--bg)", padding: 28, minWidth: 0, transition: "background 0.3s" }}>
-            {!selected ? (
-              <div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, opacity: 0.4 }}>
-                <div style={{ fontSize: 48, color: "var(--text3)" }}>◉</div>
-                <div style={{ color: "var(--text3)", fontSize: 14 }}>Select an incident to view details</div>
-              </div>
-            ) : (
-              <div style={{ maxWidth: 680 }}>
-                <DetailContent inc={selected} mobile={false} />
-              </div>
-            )}
-          </div>
+          {/* RIGHT PANEL — Staff + Detail */}
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minHeight: 0 }}>
 
+            {/* Staff status panel — top right */}
+            <div style={{ padding: "12px 20px", borderBottom: "1px solid var(--border)", background: "var(--bg2)", flexShrink: 0 }}>
+              <div style={{ fontSize: 9, color: "var(--text3)", letterSpacing: "0.1em", marginBottom: 10, fontFamily: "'DM Mono',monospace", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span>STAFF STATUS</span>
+                {currentUser && (
+                  <button onClick={toggleMyStatus} style={{
+                    fontSize: 10, padding: "3px 10px",
+                    background: staffStatus[currentUser.email]?.status === "busy" ? "#E8473F22" : "#4CAF7D22",
+                    color: staffStatus[currentUser.email]?.status === "busy" ? "#E8473F" : "#4CAF7D",
+                    border: `1px solid ${staffStatus[currentUser.email]?.status === "busy" ? "#E8473F44" : "#4CAF7D44"}`,
+                    borderRadius: 20, cursor: "pointer", fontFamily: "'Syne',sans-serif"
+                  }}>
+                    Set me as {staffStatus[currentUser.email]?.status === "busy" ? "Free" : "Busy"}
+                  </button>
+                )}
+              </div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {STAFF_LIST.map(staff => {
+                  const s      = staffStatus[staff.id];
+                  const isBusy = s?.status === "busy";
+                  const isMe   = currentUser?.email === staff.id;
+                  return (
+                    <div key={staff.id} style={{
+                      display: "flex", alignItems: "center", gap: 8,
+                      padding: "6px 12px", borderRadius: 20,
+                      background: isMe ? "var(--red-dim)" : "var(--bg3)",
+                      border: `1px solid ${isMe ? "var(--red-border)" : isBusy ? "#E8473F33" : "#4CAF7D33"}`
+                    }}>
+                      <div style={{
+                        width: 8, height: 8, borderRadius: "50%",
+                        background: isBusy ? "#E8473F" : "#4CAF7D",
+                        animation: isBusy ? "pulse 1.5s infinite" : "none"
+                      }} />
+                      <span style={{ fontSize: 12, color: "var(--text)", fontWeight: isMe ? 700 : 400 }}>
+                        {staff.name}
+                      </span>
+                      <span style={{ fontSize: 10, color: isBusy ? "#E8473F" : "#4CAF7D", fontWeight: 600 }}>
+                        {isBusy ? "BUSY" : "FREE"}
+                      </span>
+                      {isMe && <span style={{ fontSize: 9, color: "var(--red)" }}>(you)</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Detail panel */}
+            <div style={{ flex: 1, overflowY: "auto", background: "var(--bg)", padding: 24, minWidth: 0, transition: "background 0.3s" }}>
+              {!selected ? (
+                <div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, opacity: 0.4 }}>
+                  <div style={{ fontSize: 48, color: "var(--text3)" }}>◉</div>
+                  <div style={{ color: "var(--text3)", fontSize: 14 }}>Select an incident to view details</div>
+                </div>
+              ) : (
+                <div style={{ maxWidth: 680 }}>
+                  <DetailContent inc={selected} mobile={false} />
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>
