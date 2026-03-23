@@ -5,13 +5,13 @@ import { useIncidentAlert } from "../hooks/useIncidentAlert";
 
 const GEMINI_KEY = import.meta.env.VITE_GEMINI_KEY;
 const sevColor = { P1: "#E8473F", P2: "#F0A500", P3: "#4B8FE2" };
-const sevBg    = { P1: "#E8473F18", P2: "#F0A50018", P3: "#4B8FE218" };
+const sevBg = { P1: "#E8473F18", P2: "#F0A50018", P3: "#4B8FE218" };
 const typeIcon = { Medical: "♥", Fire: "▲", Security: "◉", Flood: "◈", Panic: "!", Other: "…" };
 
 function timeAgo(ts) {
   if (!ts) return "just now";
   const diff = Math.floor((Date.now() - ts.toMillis()) / 1000);
-  if (diff < 60)   return `${diff}s ago`;
+  if (diff < 60) return `${diff}s ago`;
   if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
   return `${Math.floor(diff / 3600)}h ago`;
 }
@@ -29,15 +29,16 @@ function Skeleton({ w = "100%", h = 14, r = 6 }) {
 }
 
 export default function Dashboard() {
-  const [incidents, setIncidents]         = useState([]);
-  const [selected, setSelected]           = useState(null);
-  const [report, setReport]               = useState("");
+  const [incidents, setIncidents] = useState([]);
+  const [selected, setSelected] = useState(null);
+  const [report, setReport] = useState("");
   const [reportLoading, setReportLoading] = useState(false);
-  const [filter, setFilter]               = useState("active");
-  const [resolving, setResolving]         = useState(false);
-  const [loaded, setLoaded]               = useState(false);
-  const [showDetail, setShowDetail]       = useState(false);
-  const [isMobile, setIsMobile]           = useState(window.innerWidth < 768);
+  const [filter, setFilter] = useState("active");
+  const [resolving, setResolving] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [showDetail, setShowDetail] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [clock, setClock] = useState(new Date().toLocaleTimeString());
 
   useIncidentAlert(incidents);
 
@@ -45,6 +46,13 @@ export default function Dashboard() {
     const handler = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener("resize", handler);
     return () => window.removeEventListener("resize", handler);
+  }, []);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setClock(new Date().toLocaleTimeString());
+    }, 1000);
+    return () => clearInterval(timer);
   }, []);
 
   useEffect(() => {
@@ -72,7 +80,7 @@ export default function Dashboard() {
     setResolving(true);
     await updateDoc(doc(db, "incidents", id), { status: "resolved" });
     const feedbackUrl = `${window.location.origin}/feedback?id=${id}`;
-    await navigator.clipboard.writeText(feedbackUrl).catch(() => {});
+    await navigator.clipboard.writeText(feedbackUrl).catch(() => { });
     alert(`Resolved! Feedback link copied:\n${feedbackUrl}`);
     setSelected(null);
     setReport("");
@@ -110,8 +118,8 @@ export default function Dashboard() {
     }
   }
 
-  const active    = incidents.filter(i => i.status === "active");
-  const resolved  = incidents.filter(i => i.status === "resolved");
+  const active = incidents.filter(i => i.status === "active");
+  const resolved = incidents.filter(i => i.status === "resolved");
   const displayed = filter === "active" ? active : resolved;
 
   // Voice message block — reused in both mobile and desktop
@@ -206,8 +214,11 @@ export default function Dashboard() {
             </div>
           )}
           {!isMobile && (
-            <div style={{ fontSize: 11, color: "var(--text3)", fontFamily: "'DM Mono',monospace" }}>
-              {new Date().toLocaleTimeString()}
+            <div style={{
+              fontSize: 11, color: "var(--text3)",
+              fontFamily: "'DM Mono',monospace"
+            }}>
+              {clock}
             </div>
           )}
         </div>
@@ -224,9 +235,9 @@ export default function Dashboard() {
               {/* Stats */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
                 {[
-                  { label: "Active",   val: active.length,    color: "var(--red)"   },
-                  { label: "Resolved", val: resolved.length,  color: "var(--green)" },
-                  { label: "Total",    val: incidents.length, color: "var(--text2)" },
+                  { label: "Active", val: active.length, color: "var(--red)" },
+                  { label: "Resolved", val: resolved.length, color: "var(--green)" },
+                  { label: "Total", val: incidents.length, color: "var(--text2)" },
                 ].map((s, i) => (
                   <div key={s.label} style={{ padding: "12px 8px", textAlign: "center", borderRight: i < 2 ? "1px solid var(--border)" : "none", background: "var(--bg2)" }}>
                     <div style={{ fontSize: 20, fontWeight: 800, color: s.color, fontFamily: "'DM Mono',monospace" }}>
@@ -408,9 +419,9 @@ export default function Dashboard() {
             {/* Stats */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
               {[
-                { label: "Active",   val: active.length,    color: "var(--red)"   },
-                { label: "Resolved", val: resolved.length,  color: "var(--green)" },
-                { label: "Total",    val: incidents.length, color: "var(--text2)" },
+                { label: "Active", val: active.length, color: "var(--red)" },
+                { label: "Resolved", val: resolved.length, color: "var(--green)" },
+                { label: "Total", val: incidents.length, color: "var(--text2)" },
               ].map((s, i) => (
                 <div key={s.label} style={{ padding: "14px 10px", textAlign: "center", borderRight: i < 2 ? "1px solid var(--border)" : "none" }}>
                   <div style={{ fontSize: 22, fontWeight: 800, color: s.color, fontFamily: "'DM Mono',monospace", animation: loaded ? "fadeUp 0.4s ease" : "none" }}>
