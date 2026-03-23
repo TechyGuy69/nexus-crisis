@@ -8,7 +8,7 @@ import { useLanguage } from "../context/LanguageContext";
 
 export default function Login() {
   const { t } = useLanguage();
-  const [email, setEmail]       = useState("g");
+  const [email, setEmail]       = useState("");
   const [password, setPassword] = useState("");
   const [error, setError]       = useState("");
   const [loading, setLoading]   = useState(false);
