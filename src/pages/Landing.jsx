@@ -20,10 +20,10 @@ export default function Landing() {
   }, []);
 
   const STATS = [
-    { val: "<90s", label: t.avgResponse    },
-    { val: "AI",   label: t.geminiPowered  },
-    { val: "24/7", label: t.monitoring     },
-    { val: "0",    label: t.infoLost       },
+    { val: "<90s", label: t.avgResponse },
+    { val: "AI", label: t.geminiPowered },
+    { val: "24/7", label: t.monitoring },
+    { val: "0", label: t.infoLost },
   ];
 
   const FEATURES = [
@@ -55,28 +55,42 @@ export default function Landing() {
       <nav style={{
         position: "relative", zIndex: 10,
         display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: isMobile ? "16px" : "20px 40px",
+        padding: isMobile ? "12px 16px" : "20px 40px",
         borderBottom: "1px solid var(--border)"
       }}>
         <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 16, fontWeight: 500, color: "var(--red)", letterSpacing: "0.08em" }}>
           NEXUS
         </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
           <LanguageSelector />
           <ThemeToggle />
-          {!isMobile && (
-            <button onClick={() => navigate("/login")} style={{
-              padding: "8px 20px", background: "transparent",
-              border: "1px solid var(--border2)", borderRadius: 8,
-              color: "var(--text2)", fontSize: 13, cursor: "pointer"
-            }}>{t.staffLogin}</button>
-          )}
-          <button onClick={() => navigate("/report")} style={{
-            padding: isMobile ? "8px 16px" : "8px 20px",
-            background: "var(--red)", border: "none", borderRadius: 8,
-            color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer"
+
+          {/* Staff login — icon on mobile, text on desktop */}
+          <button onClick={() => navigate("/login")} style={{
+            height: 38,
+            padding: isMobile ? "0 10px" : "0 16px",
+            background: "var(--bg3)",
+            border: "1px solid var(--border2)",
+            borderRadius: 10,
+            color: "var(--text2)",
+            fontSize: isMobile ? 18 : 13,
+            cursor: "pointer",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            gap: 6, whiteSpace: "nowrap"
           }}>
-            {isMobile ? t.sos : t.reportEmergency}
+            {isMobile ? "👤" : t.staffLogin}
+          </button>
+
+          {/* SOS / Report button */}
+          <button onClick={() => navigate("/report")} style={{
+            height: 38,
+            padding: isMobile ? "0 12px" : "0 20px",
+            background: "var(--red)", border: "none", borderRadius: 8,
+            color: "#fff", fontSize: isMobile ? 12 : 13,
+            fontWeight: 700, cursor: "pointer",
+            whiteSpace: "nowrap"
+          }}>
+            {isMobile ? "SOS" : t.reportEmergency}
           </button>
         </div>
       </nav>
