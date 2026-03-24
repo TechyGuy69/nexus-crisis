@@ -1,13 +1,31 @@
 import { useEffect, useState } from "react";
 import { db } from "../firebase";
 import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Sector } from "recharts";
 
 const sevColor  = { P1: "#E8473F", P2: "#F0A500", P3: "#4B8FE2" };
 const typeColor = { Medical: "#E8473F", Fire: "#F0A500", Security: "#4B8FE2", Flood: "#4CAF7D", Panic: "#D4537E", Other: "#7e7d8f" };
 
+// Custom shape for the hover "zoom" effect on the Pie Chart
+const renderActiveShape = (props) => {
+  const { cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill } = props;
+  return (
+    <Sector
+      cx={cx}
+      cy={cy}
+      innerRadius={innerRadius}
+      outerRadius={outerRadius + 6} // Expands the slice by 6px
+      startAngle={startAngle}
+      endAngle={endAngle}
+      fill={fill}
+      style={{ outline: "none" }} // Removes the ugly black border
+    />
+  );
+};
+
 export default function Analytics() {
   const [incidents, setIncidents] = useState([]);
+  const [activePieIndex, setActivePieIndex] = useState(-1);
 
   useEffect(() => {
     const q = query(collection(db, "incidents"), orderBy("timestamp", "desc"));
@@ -41,14 +59,22 @@ export default function Analytics() {
   });
 
   const CustomTooltip = ({ active, payload }) => {
-    if (active && payload?.length) return (
-      <div style={{
-        background: "var(--bg2)", border: "1px solid var(--border)",
-        borderRadius: 8, padding: "8px 14px", fontSize: 13, color: "var(--text)"
-      }}>
-        {payload[0].value} incidents
-      </div>
-    );
+    if (active && payload?.length) {
+      // Get the name/label depending on whether it's the PieChart or BarChart
+      const data = payload[0].payload;
+      const label = data.name || data.label || "";
+      
+      return (
+        <div style={{
+          background: "var(--bg2)", border: "1px solid var(--border)",
+          borderRadius: 8, padding: "8px 14px", fontSize: 13, color: "var(--text)",
+          boxShadow: "0 4px 12px rgba(0,0,0,0.1)", pointerEvents: "none"
+        }}>
+          {label && <span style={{ fontWeight: 700, marginRight: 6 }}>{label}:</span>}
+          {payload[0].value} incidents
+        </div>
+      );
+    }
     return null;
   };
 
@@ -128,17 +154,17 @@ export default function Analytics() {
               }}>No data yet</div>
             ) : (
               <ResponsiveContainer width="100%" height={180}>
-                <BarChart data={last7} barSize={24}>
+                <BarChart data={last7} barSize={24} style={{ outline: "none" }}>
                   <XAxis dataKey="label" tick={{ fill: "var(--text3)", fontSize: 11 }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fill: "var(--text3)", fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
                   <Tooltip content={<CustomTooltip />} cursor={{ fill: "var(--border)" }} />
-                  <Bar dataKey="count" fill="var(--red)" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="count" fill="var(--red)" radius={[4, 4, 0, 0]} style={{ outline: "none" }} />
                 </BarChart>
               </ResponsiveContainer>
             )}
           </div>
 
-          {/* Pie chart */}
+{/* Pie chart */}
           <div style={{
             background: "var(--bg2)", border: "1px solid var(--border)",
             borderRadius: 14, padding: 20, boxShadow: "var(--card-shadow)",
@@ -156,10 +182,24 @@ export default function Analytics() {
               }}>No data yet</div>
             ) : (
               <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-                <PieChart width={140} height={140}>
-                  <Pie data={byType} cx={65} cy={65} innerRadius={40} outerRadius={65} dataKey="value" strokeWidth={0}>
+                <PieChart width={140} height={140} style={{ outline: "none" }}>
+                  <Tooltip content={<CustomTooltip />} cursor={false} />
+                  <Pie 
+                    data={byType} 
+                    cx={70} 
+                    cy={70} 
+                    innerRadius={38} 
+                    outerRadius={56} 
+                    dataKey="value" 
+                    strokeWidth={0}
+                    activeIndex={activePieIndex}
+                    activeShape={renderActiveShape}
+                    onMouseEnter={(_, index) => setActivePieIndex(index)}
+                    onMouseLeave={() => setActivePieIndex(-1)}
+                    style={{ outline: "none" }}
+                  >
                     {byType.map(entry => (
-                      <Cell key={entry.name} fill={typeColor[entry.name] || "#888"} />
+                      <Cell key={entry.name} fill={typeColor[entry.name] || "#888"} style={{ outline: "none" }} />
                     ))}
                   </Pie>
                 </PieChart>
@@ -181,7 +221,7 @@ export default function Analytics() {
               </div>
             )}
           </div>
-        </div>
+          </div>
 
         {/* Severity breakdown */}
         <div style={{
