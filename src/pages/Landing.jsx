@@ -8,7 +8,8 @@ import LanguageSelector from "../components/LanguageSelector";
 export default function Landing() {
   const navigate = useNavigate();
   const { isDark } = useTheme();
-  const { t } = useLanguage();
+  // Added 'language' extraction so we know exactly which one is active
+  const { t, language } = useLanguage();
   const [mounted, setMounted] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
@@ -18,6 +19,16 @@ export default function Landing() {
     window.addEventListener("resize", handler);
     return () => { clearTimeout(timer); window.removeEventListener("resize", handler); };
   }, []);
+
+  // Custom translation dictionary just for the "Login" text
+  const loginTranslations = {
+    en: "Login",
+    hi: "लॉगिन",
+    bn: "লগইন",
+    ta: "உள்நுழைக",
+    te: "లాగిన్"
+  };
+  const loginText = loginTranslations[language] || "Login";
 
   const STATS = [
     { val: "<90s", label: t.avgResponse   },
@@ -66,7 +77,8 @@ export default function Landing() {
         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
           <LanguageSelector />
           <ThemeToggle />
-          {/* Login icon on mobile, text on desktop */}
+          
+          {/* Top Nav Button */}
           <button onClick={() => navigate("/login")} style={{
             height: 38, padding: isMobile ? "0 10px" : "0 16px",
             background: "var(--bg3)", border: "1px solid var(--border2)",
@@ -75,8 +87,9 @@ export default function Landing() {
             display: "flex", alignItems: "center", justifyContent: "center",
             gap: 6, whiteSpace: "nowrap"
           }}>
-            {isMobile ? "👤" : "Login"}
+            {isMobile ? "👤" : loginText}
           </button>
+          
           <button onClick={() => navigate("/report")} style={{
             height: 38, padding: isMobile ? "0 12px" : "0 20px",
             background: "var(--red)", border: "none", borderRadius: 8,
@@ -144,12 +157,14 @@ export default function Landing() {
             borderRadius: 12, fontSize: isMobile ? 14 : 16, fontWeight: 700,
             cursor: "pointer", animation: "glow 3s ease-in-out infinite"
           }}>{t.reportEmergency}</button>
+          
+          {/* Middle CTA Button */}
           <button onClick={() => navigate("/login")} style={{
             padding: isMobile ? "14px 24px" : "16px 36px",
             background: "transparent", color: "var(--text)",
             border: "1px solid var(--border2)", borderRadius: 12,
             fontSize: isMobile ? 14 : 16, fontWeight: 600, cursor: "pointer"
-          }}>Login →</button>
+          }}>{loginText} →</button>
         </div>
 
         {/* Stats */}
@@ -227,12 +242,14 @@ export default function Landing() {
             background: "var(--red)", color: "#fff", border: "none",
             borderRadius: 12, fontSize: isMobile ? 14 : 15, fontWeight: 700, cursor: "pointer"
           }}>{t.tryGuestButton}</button>
+
+          {/* Bottom CTA Button */}
           <button onClick={() => navigate("/login")} style={{
             padding: isMobile ? "12px 20px" : "14px 32px",
             background: "transparent", color: "var(--text)",
             border: "1px solid var(--border2)", borderRadius: 12,
             fontSize: isMobile ? 14 : 15, fontWeight: 600, cursor: "pointer"
-          }}>Login →</button>
+          }}>{loginText} →</button>
         </div>
       </div>
 

@@ -29,6 +29,38 @@ function timeAgo(ts) {
   return `${Math.floor(diff / 3600)}h ago`;
 }
 
+// Added the VoiceMessageBlock from the Dashboard
+function VoiceMessageBlock({ inc }) {
+  if (!inc.message) return null;
+  return (
+    <div style={{ background: "var(--bg2)", border: "1px solid var(--border)", borderRadius: 12, padding: 16, marginBottom: 14, boxShadow: "var(--card-shadow)" }}>
+      <div style={{ fontSize: 9, color: "var(--text3)", letterSpacing: "0.1em", marginBottom: 10, fontFamily: "'DM Mono',monospace" }}>
+        {inc.voiceReport ? "VOICE MESSAGE" : "GUEST MESSAGE"}
+      </div>
+      {inc.voiceReport ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--purple)" }}>
+            <span>🎤</span><span>Guest reported via voice recording</span>
+          </div>
+          {inc.audioURL && (
+            <div style={{ background: "var(--bg3)", borderRadius: 10, padding: "10px 14px", border: "1px solid var(--border)" }}>
+              <div style={{ fontSize: 11, color: "var(--text3)", marginBottom: 8, fontFamily: "'DM Mono',monospace" }}>PLAY GUEST VOICE</div>
+              <audio key={inc.audioURL} controls src={inc.audioURL} style={{ width: "100%", height: 36 }} />
+            </div>
+          )}
+          <div style={{ fontSize: 13, color: "var(--text2)", lineHeight: 1.7, fontStyle: "italic", wordBreak: "break-word", padding: "10px 14px", background: "var(--bg3)", borderRadius: 8, borderLeft: "3px solid var(--purple)" }}>
+            "{inc.message}"
+          </div>
+        </div>
+      ) : (
+        <div style={{ fontSize: 14, color: "var(--text2)", lineHeight: 1.7, fontStyle: "italic", wordBreak: "break-word" }}>
+          "{inc.message}"
+        </div>
+      )}
+    </div>
+  );
+}
+
 function MobileIncidentDetail({ inc, staffStatus, STAFF_LIST, STATUS_CONFIG, typeIcon, sevBg, sevColor, timeAgo, unassignStaff, assignStaff, updateStatus, resolveIncident }) {
   if (!inc) return null;
   const sc = STATUS_CONFIG[inc.status] || STATUS_CONFIG.active;
@@ -53,6 +85,9 @@ function MobileIncidentDetail({ inc, staffStatus, STAFF_LIST, STATUS_CONFIG, typ
         <span style={{ color: "var(--red)" }}>⚡ </span>
         <span style={{ fontSize: 13, color: "var(--text)", fontWeight: 600, wordBreak: "break-word" }}>{inc.action}</span>
       </div>
+
+      {/* ADDED VOICE MESSAGE BLOCK HERE FOR MOBILE */}
+      <VoiceMessageBlock inc={inc} />
 
       {inc.status !== "resolved" && (
         <div style={{ marginBottom: 14 }}>
@@ -184,24 +219,15 @@ export default function AdminPanel() {
     setSelected(prev => prev ? { ...prev, status } : prev);
   }
 
-  async function toggleStaffStatus(staffEmail) {
-    const current = staffStatus[staffEmail]?.status || "free";
-    const isCurrentlyFree = current === "free";
-    await setDoc(doc(db, "staff_status", staffEmail), {
-      status: isCurrentlyFree ? "busy" : "free",
-      ...(isCurrentlyFree ? {} : { assignedIncident: null })
-    }, { merge: true });
-  }
-
   const active = incidents.filter(i => i.status !== "resolved");
   const resolved = incidents.filter(i => i.status === "resolved");
   const sortFn = arr => [...arr].sort((a, b) => ({ P1: 0, P2: 1, P3: 2 }[a.severity] ?? 3) - ({ P1: 0, P2: 1, P3: 2 }[b.severity] ?? 3));
   const displayed = sortFn(filter === "active" ? active : resolved);
   const freeStaff = STAFF_LIST.filter(s => !staffStatus[s.id] || staffStatus[s.id]?.status === "free");
 
+  // Removed the 'Staff Control' tab completely
   const TABS = [
     { id: "incidents", label: isMobile ? "📋" : "📋 Incidents" },
-    { id: "staff", label: isMobile ? "👥" : "👥 Staff Control" },
     { id: "assign", label: isMobile ? "⚡" : "⚡ Quick Assign" },
   ];
 
@@ -460,82 +486,82 @@ export default function AdminPanel() {
                       <h3 style={{ fontSize: 17, fontWeight: 700, color: "var(--text)" }}>Incident Details</h3>
                       <button onClick={() => setSelected(null)} style={{ background: "transparent", border: "none", color: "var(--text3)", cursor: "pointer", fontSize: 18 }}>✕</button>
                     </div>
-                    <MobileIncidentDetail
-                      inc={selected}
-                      staffStatus={staffStatus}
-                      STAFF_LIST={STAFF_LIST}
-                      STATUS_CONFIG={STATUS_CONFIG}
-                      typeIcon={typeIcon}
-                      sevBg={sevBg}
-                      sevColor={sevColor}
-                      timeAgo={timeAgo}
-                      unassignStaff={unassignStaff}
-                      assignStaff={assignStaff}
-                      updateStatus={updateStatus}
-                      resolveIncident={resolveIncident}
-                    />
+
+                    <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+                      <span style={{ padding: "4px 12px", borderRadius: 20, fontSize: 11, background: sevBg[selected.severity], color: sevColor[selected.severity], fontFamily: "'DM Mono',monospace", fontWeight: 600 }}>{selected.severity}</span>
+                      <span style={{ padding: "4px 12px", borderRadius: 20, fontSize: 11, background: STATUS_CONFIG[selected.status]?.bg, color: STATUS_CONFIG[selected.status]?.color, fontWeight: 600 }}>
+                        {STATUS_CONFIG[selected.status]?.icon} {STATUS_CONFIG[selected.status]?.label}
+                      </span>
+                    </div>
+
+                    <div style={{ fontSize: 18, fontWeight: 800, color: "var(--text)", marginBottom: 6 }}>
+                      {typeIcon[selected.type]} {selected.type} — Room {selected.room}
+                    </div>
+                    <div style={{ fontSize: 13, color: "var(--text2)", marginBottom: 14 }}>
+                      {selected.guestName} · {timeAgo(selected.timestamp)}
+                    </div>
+
+                    <div style={{ background: "#8B7FE810", border: "1px solid #8B7FE830", borderRadius: 10, padding: 14, marginBottom: 14 }}>
+                      <div style={{ fontSize: 10, color: "var(--purple)", letterSpacing: "0.1em", marginBottom: 8, fontFamily: "'DM Mono',monospace" }}>AI BRIEFING</div>
+                      <div style={{ fontSize: 13, color: "var(--text)", lineHeight: 1.6 }}>{selected.briefing}</div>
+                    </div>
+
+                    <div style={{ background: "var(--red-dim)", border: "1px solid var(--red-border)", borderRadius: 10, padding: 12, marginBottom: 14 }}>
+                      <span style={{ color: "var(--red)" }}>⚡ </span>
+                      <span style={{ fontSize: 13, color: "var(--text)", fontWeight: 600 }}>{selected.action}</span>
+                    </div>
+
+                    {/* ADDED VOICE MESSAGE BLOCK HERE FOR DESKTOP */}
+                    <VoiceMessageBlock inc={selected} />
+
+                    {/* Assign staff */}
+                    {selected.status !== "resolved" && (
+                      <div style={{ marginBottom: 14 }}>
+                        <div style={{ fontSize: 11, color: "var(--text3)", letterSpacing: "0.1em", marginBottom: 10, fontFamily: "'DM Mono',monospace" }}>ASSIGN TO STAFF</div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                          {STAFF_LIST.map(staff => {
+                            const isBusy = staffStatus[staff.id]?.status === "busy";
+                            const isAssigned = selected.assignedEmail === staff.id;
+                            return (
+                              <div key={staff.id} style={{
+                                display: "flex", alignItems: "center", justifyContent: "space-between",
+                                padding: "8px 12px", borderRadius: 8,
+                                background: isAssigned ? "#4B8FE215" : "var(--bg3)",
+                                border: `1px solid ${isAssigned ? "#4B8FE244" : "var(--border)"}`
+                              }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                  <div style={{ width: 8, height: 8, borderRadius: "50%", background: isBusy ? "#E8473F" : "#4CAF7D" }} />
+                                  <div>
+                                    <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}>{staff.name}</div>
+                                    <div style={{ fontSize: 10, color: "var(--text3)" }}>{staff.role} · {isBusy ? "BUSY" : "FREE"}</div>
+                                  </div>
+                                </div>
+                                {isAssigned ? (
+                                  <button onClick={() => unassignStaff(selected)} style={{ padding: "4px 12px", fontSize: 11, borderRadius: 6, border: "none", background: "#E8473F18", color: "#E8473F", cursor: "pointer", fontWeight: 600 }}>Unassign</button>
+                                ) : (
+                                  <button onClick={() => assignStaff(selected.id, staff.id, staff.name)} disabled={isBusy} style={{ padding: "4px 12px", fontSize: 11, borderRadius: 6, border: "none", background: isBusy ? "var(--bg4)" : "#4B8FE222", color: isBusy ? "var(--text3)" : "#4B8FE2", cursor: isBusy ? "not-allowed" : "pointer", fontWeight: 600 }}>
+                                    {isBusy ? "Busy" : "Assign"}
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {selected.status !== "resolved" && (
+                      <div style={{ display: "flex", gap: 8 }}>
+                        {selected.status === "active" && (
+                          <button onClick={() => updateStatus(selected.id, "inprogress")} style={{ flex: 1, padding: 10, background: "#4B8FE222", color: "#4B8FE2", border: "1px solid #4B8FE244", borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>🔄 In Progress</button>
+                        )}
+                        <button onClick={() => resolveIncident(selected)} style={{ flex: 1, padding: 10, background: "#4CAF7D22", color: "#4CAF7D", border: "1px solid #4CAF7D44", borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>✓ Resolve</button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
             )}
-          </div>
-        )}
-
-        {/* STAFF CONTROL TAB */}
-        {tab === "staff" && (
-          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2,1fr)", gap: isMobile ? 10 : 14 }}>
-            {STAFF_LIST.map(staff => {
-              const s = staffStatus[staff.id];
-              const isBusy = s?.status === "busy";
-              const assignedInc = incidents.find(i => i.id === s?.assignedIncident);
-              return (
-                <div key={staff.id} style={{
-                  background: "var(--bg2)", border: `1px solid ${isBusy ? "#E8473F33" : "#4CAF7D33"}`,
-                  borderRadius: 16, padding: isMobile ? 16 : 20, boxShadow: "var(--card-shadow)"
-                }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 12 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <div style={{
-                        width: isMobile ? 36 : 44, height: isMobile ? 36 : 44, borderRadius: "50%",
-                        background: isBusy ? "#E8473F22" : "#4CAF7D22",
-                        border: `2px solid ${isBusy ? "#E8473F" : "#4CAF7D"}`,
-                        display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0
-                      }}>
-                        {isBusy ? "😰" : "😊"}
-                      </div>
-                      <div>
-                        <div style={{ fontSize: isMobile ? 14 : 16, fontWeight: 700, color: "var(--text)", wordBreak: "break-word" }}>{staff.name}</div>
-                        <div style={{ fontSize: 11, color: "var(--text3)" }}>{staff.role}</div>
-                      </div>
-                    </div>
-                    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
-                      <span style={{ padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: isBusy ? "#E8473F22" : "#4CAF7D22", color: isBusy ? "#E8473F" : "#4CAF7D" }}>
-                        {isBusy ? "🔴 BUSY" : "🟢 FREE"}
-                      </span>
-                      <button onClick={() => toggleStaffStatus(staff.id)} style={{ padding: "5px 10px", fontSize: 10, borderRadius: 20, background: "var(--bg3)", border: "1px solid var(--border)", color: "var(--text2)", cursor: "pointer" }}>
-                        Set {isBusy ? "Free" : "Busy"}
-                      </button>
-                    </div>
-                  </div>
-
-                  {assignedInc ? (
-                    <div style={{ background: "var(--bg3)", border: "1px solid var(--border)", borderRadius: 10, padding: 12 }}>
-                      <div style={{ fontSize: 9, color: "var(--text3)", letterSpacing: "0.1em", marginBottom: 6, fontFamily: "'DM Mono',monospace" }}>CURRENT ASSIGNMENT</div>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", marginBottom: 4, wordBreak: "break-word" }}>
-                        {assignedInc.type} · Room {assignedInc.room}
-                      </div>
-                      <div style={{ fontSize: 12, color: "var(--text2)", marginBottom: 10, wordBreak: "break-word" }}>{assignedInc.briefing?.slice(0, 60)}...</div>
-                      <div style={{ display: "flex", gap: 6 }}>
-                        <button onClick={() => unassignStaff(assignedInc, staff.id)} style={{ flex: 1, padding: "8px 0", fontSize: 12, borderRadius: 8, border: "none", background: "#E8473F18", color: "#E8473F", cursor: "pointer", fontWeight: 600 }}>Unassign</button>
-                        <button onClick={() => resolveIncident(assignedInc, staff.id)} style={{ flex: 1, padding: "8px 0", fontSize: 12, borderRadius: 8, border: "none", background: "#4CAF7D22", color: "#4CAF7D", cursor: "pointer", fontWeight: 600 }}>Resolve</button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div style={{ fontSize: 12, color: "var(--text3)", textAlign: "center", padding: "10px 0" }}>No active assignment</div>
-                  )}
-                </div>
-              );
-            })}
           </div>
         )}
 
