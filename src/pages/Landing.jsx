@@ -20,10 +20,10 @@ export default function Landing() {
   }, []);
 
   const STATS = [
-    { val: "<90s", label: t.avgResponse },
-    { val: "AI", label: t.geminiPowered },
-    { val: "24/7", label: t.monitoring },
-    { val: "0", label: t.infoLost },
+    { val: "<90s", label: t.avgResponse   },
+    { val: "AI",   label: t.geminiPowered },
+    { val: "24/7", label: t.monitoring    },
+    { val: "0",    label: t.infoLost      },
   ];
 
   const FEATURES = [
@@ -36,6 +36,7 @@ export default function Landing() {
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg)", overflow: "hidden", position: "relative", transition: "background 0.3s" }}>
 
+      {/* Background glow */}
       <div style={{
         position: "fixed", top: "-10%", left: "50%", transform: "translateX(-50%)",
         width: isMobile ? 300 : 600, height: isMobile ? 300 : 600, borderRadius: "50%",
@@ -43,6 +44,7 @@ export default function Landing() {
         pointerEvents: "none", zIndex: 0
       }} />
 
+      {/* Grid */}
       <div style={{
         position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none",
         backgroundImage: isDark
@@ -64,31 +66,22 @@ export default function Landing() {
         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
           <LanguageSelector />
           <ThemeToggle />
-
-          {/* Staff login — icon on mobile, text on desktop */}
+          {/* Login icon on mobile, text on desktop */}
           <button onClick={() => navigate("/login")} style={{
-            height: 38,
-            padding: isMobile ? "0 10px" : "0 16px",
-            background: "var(--bg3)",
-            border: "1px solid var(--border2)",
-            borderRadius: 10,
-            color: "var(--text2)",
-            fontSize: isMobile ? 18 : 13,
-            cursor: "pointer",
+            height: 38, padding: isMobile ? "0 10px" : "0 16px",
+            background: "var(--bg3)", border: "1px solid var(--border2)",
+            borderRadius: 10, color: "var(--text2)",
+            fontSize: isMobile ? 18 : 13, cursor: "pointer",
             display: "flex", alignItems: "center", justifyContent: "center",
             gap: 6, whiteSpace: "nowrap"
           }}>
-            {isMobile ? "👤" : t.staffLogin}
+            {isMobile ? "👤" : "Login"}
           </button>
-
-          {/* SOS / Report button */}
           <button onClick={() => navigate("/report")} style={{
-            height: 38,
-            padding: isMobile ? "0 12px" : "0 20px",
+            height: 38, padding: isMobile ? "0 12px" : "0 20px",
             background: "var(--red)", border: "none", borderRadius: 8,
             color: "#fff", fontSize: isMobile ? 12 : 13,
-            fontWeight: 700, cursor: "pointer",
-            whiteSpace: "nowrap"
+            fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap"
           }}>
             {isMobile ? "SOS" : t.reportEmergency}
           </button>
@@ -102,6 +95,7 @@ export default function Landing() {
         padding: isMobile ? "48px 20px 40px" : "80px 40px 60px",
         textAlign: "center"
       }}>
+
         {/* Badge */}
         <div style={{
           display: "inline-flex", alignItems: "center", gap: 8,
@@ -155,7 +149,7 @@ export default function Landing() {
             background: "transparent", color: "var(--text)",
             border: "1px solid var(--border2)", borderRadius: 12,
             fontSize: isMobile ? 14 : 16, fontWeight: 600, cursor: "pointer"
-          }}>{t.staffDashboard}</button>
+          }}>Login →</button>
         </div>
 
         {/* Stats */}
@@ -238,9 +232,15 @@ export default function Landing() {
             background: "transparent", color: "var(--text)",
             border: "1px solid var(--border2)", borderRadius: 12,
             fontSize: isMobile ? 14 : 15, fontWeight: 600, cursor: "pointer"
-          }}>{t.openCommandCenter}</button>
+          }}>Login →</button>
         </div>
       </div>
+
+      <style>{`
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+        @keyframes glow  { 0%,100%{box-shadow:0 0 20px var(--red-dim)} 50%{box-shadow:0 0 40px var(--red-border)} }
+        @keyframes fadeUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+      `}</style>
     </div>
   );
 }

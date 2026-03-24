@@ -2,32 +2,32 @@ import { useEffect, useState } from "react";
 import { db } from "../firebase";
 import { collection, onSnapshot, orderBy, query, doc, updateDoc, setDoc, getDoc } from "firebase/firestore";
 import { useIncidentAlert } from "../hooks/useIncidentAlert";
-import { auth } from "../firebase";
+import { auth, ADMIN_EMAIL } from "../firebase";
 import { onAuthStateChanged } from "firebase/auth";
 
-const GEMINI_KEY    = import.meta.env.VITE_GEMINI_KEY;
-const sevColor      = { P1: "#E8473F", P2: "#F0A500", P3: "#4B8FE2" };
-const sevBg         = { P1: "#E8473F18", P2: "#F0A50018", P3: "#4B8FE218" };
-const typeIcon      = { Medical: "♥", Fire: "▲", Security: "◉", Flood: "◈", Panic: "!", Other: "…" };
+const GEMINI_KEY = import.meta.env.VITE_GEMINI_KEY;
+const sevColor = { P1: "#E8473F", P2: "#F0A500", P3: "#4B8FE2" };
+const sevBg = { P1: "#E8473F18", P2: "#F0A50018", P3: "#4B8FE218" };
+const typeIcon = { Medical: "♥", Fire: "▲", Security: "◉", Flood: "◈", Panic: "!", Other: "…" };
 const priorityOrder = { P1: 0, P2: 1, P3: 2 };
 
 const STAFF_LIST = [
-  { id: "sayan@byteclubhotel.com", name: "Sayan", role: "Security"  },
-  { id: "sohini@byteclubhotel.com", name: "Sohini", role: "Medical"   },
+  { id: "sayan@byteclubhotel.com", name: "Sayan", role: "Security" },
+  { id: "sohini@byteclubhotel.com", name: "Sohini", role: "Medical" },
   { id: "debasmita@byteclubhotel.com", name: "Debasmita", role: "Reception" },
-  { id: "usnish@byteclubhotel.com", name: "Usnish", role: "Manager"   },
+  { id: "usnish@byteclubhotel.com", name: "Usnish", role: "Manager" },
 ];
 
 const STATUS_CONFIG = {
-  active:      { label: "Pending",     color: "#F0A500", bg: "#F0A50020", icon: "⏳" },
-  inprogress:  { label: "In Progress", color: "#4B8FE2", bg: "#4B8FE220", icon: "🔄" },
-  resolved:    { label: "Resolved",    color: "#4CAF7D", bg: "#4CAF7D20", icon: "✓"  },
+  active: { label: "Pending", color: "#F0A500", bg: "#F0A50020", icon: "⏳" },
+  inprogress: { label: "In Progress", color: "#4B8FE2", bg: "#4B8FE220", icon: "🔄" },
+  resolved: { label: "Resolved", color: "#4CAF7D", bg: "#4CAF7D20", icon: "✓" },
 };
 
 function timeAgo(ts) {
   if (!ts) return "just now";
   const diff = Math.floor((Date.now() - ts.toMillis()) / 1000);
-  if (diff < 60)   return `${diff}s ago`;
+  if (diff < 60) return `${diff}s ago`;
   if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
   return `${Math.floor(diff / 3600)}h ago`;
 }
@@ -55,18 +55,18 @@ function Skeleton({ w = "100%", h = 14, r = 6 }) {
 }
 
 export default function Dashboard() {
-  const [incidents, setIncidents]         = useState([]);
-  const [selected, setSelected]           = useState(null);
-  const [report, setReport]               = useState("");
+  const [incidents, setIncidents] = useState([]);
+  const [selected, setSelected] = useState(null);
+  const [report, setReport] = useState("");
   const [reportLoading, setReportLoading] = useState(false);
-  const [filter, setFilter]               = useState("active");
-  const [resolving, setResolving]         = useState(false);
-  const [loaded, setLoaded]               = useState(false);
-  const [showDetail, setShowDetail]       = useState(false);
-  const [isMobile, setIsMobile]           = useState(window.innerWidth < 768);
-  const [clock, setClock]                 = useState(new Date().toLocaleTimeString());
-  const [staffStatus, setStaffStatus]     = useState({});
-  const [currentUser, setCurrentUser]     = useState(null);
+  const [filter, setFilter] = useState("active");
+  const [resolving, setResolving] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [showDetail, setShowDetail] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [clock, setClock] = useState(new Date().toLocaleTimeString());
+  const [staffStatus, setStaffStatus] = useState({});
+  const [currentUser, setCurrentUser] = useState(null);
 
   useIncidentAlert(incidents);
 
@@ -103,10 +103,10 @@ export default function Dashboard() {
       if (!d.exists()) {
         const staffInfo = STAFF_LIST.find(s => s.id === currentUser.email);
         setDoc(staffRef, {
-          name:   staffInfo?.name || currentUser.email.split("@")[0],
-          role:   staffInfo?.role || "Staff",
+          name: staffInfo?.name || currentUser.email.split("@")[0],
+          role: staffInfo?.role || "Staff",
           status: "free",
-          email:  currentUser.email
+          email: currentUser.email
         });
       }
     });
@@ -178,7 +178,7 @@ export default function Dashboard() {
     setResolving(true);
     await updateIncidentStatus(id, "resolved");
     const feedbackUrl = `${window.location.origin}/feedback?id=${id}`;
-    await navigator.clipboard.writeText(feedbackUrl).catch(() => {});
+    await navigator.clipboard.writeText(feedbackUrl).catch(() => { });
     alert(`Resolved! Feedback link copied:\n${feedbackUrl}`);
     setSelected(null);
     setReport("");
@@ -189,7 +189,7 @@ export default function Dashboard() {
   async function toggleMyStatus() {
     if (!currentUser) return;
     const current = staffStatus[currentUser.email]?.status || "free";
-    const next    = current === "free" ? "busy" : "free";
+    const next = current === "free" ? "busy" : "free";
     await setDoc(doc(db, "staff_status", currentUser.email), {
       status: next
     }, { merge: true });
@@ -199,7 +199,7 @@ export default function Dashboard() {
     setReportLoading(true);
     setReport("");
     try {
-      const now     = new Date();
+      const now = new Date();
       const dateStr = now.toLocaleDateString("en-IN", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
       const timeStr = now.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
       const res = await fetch(
@@ -240,8 +240,10 @@ Plain text only — no markdown, no asterisks, no hashtags.`
     }
   }
 
-  const active    = incidents.filter(i => i.status !== "resolved");
-  const resolved  = incidents.filter(i => i.status === "resolved");
+  const isAdmin = currentUser?.email === ADMIN_EMAIL;
+  const myIncidents = isAdmin ? incidents : incidents.filter(i => i.assignedEmail === currentUser?.email);
+  const active = myIncidents.filter(i => i.status !== "resolved");
+  const resolved = myIncidents.filter(i => i.status === "resolved");
   const displayed = sortByPriority(filter === "active" ? active : resolved);
 
   // Staff panel
@@ -272,9 +274,9 @@ Plain text only — no markdown, no asterisks, no hashtags.`
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {STAFF_LIST.map(staff => {
-            const s      = staffStatus[staff.id];
+            const s = staffStatus[staff.id];
             const isBusy = s?.status === "busy";
-            const isMe   = currentUser?.email === staff.id;
+            const isMe = currentUser?.email === staff.id;
             return (
               <div key={staff.id} style={{
                 display: "flex", alignItems: "center", gap: 10,
@@ -635,9 +637,9 @@ Plain text only — no markdown, no asterisks, no hashtags.`
               {/* Stats */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
                 {[
-                  { label: "Active",   val: active.length,    color: "var(--red)"   },
-                  { label: "Resolved", val: resolved.length,  color: "var(--green)" },
-                  { label: "Total",    val: incidents.length, color: "var(--text2)" },
+                  { label: "Active", val: active.length, color: "var(--red)" },
+                  { label: "Resolved", val: resolved.length, color: "var(--green)" },
+                  { label: "Total", val: incidents.length, color: "var(--text2)" },
                 ].map((s, i) => (
                   <div key={s.label} style={{ padding: "12px 8px", textAlign: "center", borderRight: i < 2 ? "1px solid var(--border)" : "none", background: "var(--bg2)" }}>
                     <div style={{ fontSize: 20, fontWeight: 800, color: s.color, fontFamily: "'DM Mono',monospace" }}>
@@ -697,9 +699,9 @@ Plain text only — no markdown, no asterisks, no hashtags.`
             {/* Stats */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
               {[
-                { label: "Active",   val: active.length,    color: "var(--red)"   },
-                { label: "Resolved", val: resolved.length,  color: "var(--green)" },
-                { label: "Total",    val: incidents.length, color: "var(--text2)" },
+                { label: "Active", val: active.length, color: "var(--red)" },
+                { label: "Resolved", val: resolved.length, color: "var(--green)" },
+                { label: "Total", val: incidents.length, color: "var(--text2)" },
               ].map((s, i) => (
                 <div key={s.label} style={{ padding: "14px 10px", textAlign: "center", borderRight: i < 2 ? "1px solid var(--border)" : "none" }}>
                   <div style={{ fontSize: 22, fontWeight: 800, color: s.color, fontFamily: "'DM Mono',monospace" }}>
@@ -763,9 +765,9 @@ Plain text only — no markdown, no asterisks, no hashtags.`
               </div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 {STAFF_LIST.map(staff => {
-                  const s      = staffStatus[staff.id];
+                  const s = staffStatus[staff.id];
                   const isBusy = s?.status === "busy";
-                  const isMe   = currentUser?.email === staff.id;
+                  const isMe = currentUser?.email === staff.id;
                   return (
                     <div key={staff.id} style={{
                       display: "flex", alignItems: "center", gap: 8,

@@ -1,28 +1,29 @@
 import { BrowserRouter, Routes, Route, useNavigate, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { auth } from "./firebase";
+import { auth, ADMIN_EMAIL } from "./firebase";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { useTheme } from "./context/ThemeContext";
 import { useLanguage } from "./context/LanguageContext";
 import ThemeToggle from "./components/ThemeToggle";
 import LanguageSelector from "./components/LanguageSelector";
-import GuestReport   from "./pages/GuestReport";
-import Dashboard     from "./pages/Dashboard";
-import Landing       from "./pages/Landing";
-import QRPage        from "./pages/QRPage";
-import Responder     from "./pages/Responder";
-import Analytics     from "./pages/Analytics";
-import History       from "./pages/History";
-import Feedback      from "./pages/Feedback";
-import Login         from "./pages/Login";
+import GuestReport from "./pages/GuestReport";
+import Dashboard from "./pages/Dashboard";
+import Landing from "./pages/Landing";
+import QRPage from "./pages/QRPage";
+import Responder from "./pages/Responder";
+import Analytics from "./pages/Analytics";
+import History from "./pages/History";
+import Feedback from "./pages/Feedback";
+import Login from "./pages/Login";
+import AdminPanel from "./pages/AdminPanel";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 function Nav() {
   const navigate = useNavigate();
-  const loc      = useLocation();
+  const loc = useLocation();
   const { isDark } = useTheme();
   const { t } = useLanguage();
-  const [user, setUser]         = useState(null);
+  const [user, setUser] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
@@ -36,11 +37,19 @@ function Nav() {
   const hide = ["/", "/report", "/responder", "/login", "/feedback"].includes(loc.pathname);
   if (hide) return null;
 
-  const links = [
+  const isAdmin = user?.email === ADMIN_EMAIL;
+
+  const links = isAdmin ? [
+    { path: "/admin", label: "👑 Admin" },
     { path: "/dashboard", label: t.dashboard },
     { path: "/analytics", label: t.analytics },
-    { path: "/history",   label: t.history   },
-    { path: "/qr",        label: t.qrCodes   },
+    { path: "/history", label: t.history },
+    { path: "/qr", label: t.qrCodes },
+  ] : [
+    { path: "/dashboard", label: t.dashboard },
+    { path: "/analytics", label: t.analytics },
+    { path: "/history", label: t.history },
+    { path: "/qr", label: t.qrCodes },
   ];
 
   return (
@@ -156,15 +165,16 @@ export default function App() {
     <BrowserRouter>
       <Nav />
       <Routes>
-        <Route path="/"          element={<Landing />} />
-        <Route path="/login"     element={<Login />} />
-        <Route path="/report"    element={<GuestReport />} />
+        <Route path="/" element={<Landing />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/report" element={<GuestReport />} />
         <Route path="/responder" element={<Responder />} />
-        <Route path="/feedback"  element={<Feedback />} />
+        <Route path="/feedback" element={<Feedback />} />
         <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
         <Route path="/analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
-        <Route path="/qr"        element={<ProtectedRoute><QRPage /></ProtectedRoute>} />
-        <Route path="/history"   element={<ProtectedRoute><History /></ProtectedRoute>} />
+        <Route path="/qr" element={<ProtectedRoute><QRPage /></ProtectedRoute>} />
+        <Route path="/history" element={<ProtectedRoute><History /></ProtectedRoute>} />
+        <Route path="/admin" element={<ProtectedRoute><AdminPanel /></ProtectedRoute>} />
       </Routes>
     </BrowserRouter>
   );
