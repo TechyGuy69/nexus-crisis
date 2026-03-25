@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { db } from "../firebase";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, getDocs, doc, updateDoc } from "firebase/firestore";
 import ThemeToggle from "../components/ThemeToggle";
 import LanguageSelector from "../components/LanguageSelector";
 import { useLanguage } from "../context/LanguageContext";
@@ -98,13 +98,25 @@ export default function GuestReport() {
     setType("");
   }
 
+  // Helper function to find an available staff member
+  async function getFreeStaff() {
+    const staffQuery = await getDocs(collection(db, "staff_status"));
+    let freeStaff = null;
+    staffQuery.forEach(docSnap => {
+      const data = docSnap.data();
+      if (data.status === "free" && !freeStaff) {
+        freeStaff = { id: docSnap.id, name: data.name || docSnap.id.split("@")[0] };
+      }
+    });
+    return freeStaff;
+  }
+
   async function submitVoice() {
     if (!audioBlob || !room) return;
     setProcessing(true);
     try {
       let audioDownloadURL = null;
 
-      // Try Cloudinary upload
       try {
         const formData = new FormData();
         formData.append("file", audioBlob, "voice-report.webm");
@@ -123,7 +135,6 @@ export default function GuestReport() {
         console.warn("Audio upload failed, continuing without audio URL:", uploadErr);
       }
 
-      // Send to Gemini
       const base64 = await new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onloadend = () => resolve(reader.result.split(",")[1]);
@@ -140,22 +151,15 @@ export default function GuestReport() {
             contents: [{
               role: "user",
               parts: [
+                { inline_data: { mime_type: "audio/webm", data: base64 } },
                 {
-                  inline_data: {
-                    mime_type: "audio/webm",
-                    data: base64
-                  }
-                },
-                {
-                  // FIXED PROMPT: Instructed Gemini to calculate ETA based on Severity
                   text: `This is an emergency voice message from a hotel guest in room ${room}.
                 1. Transcribe what they said.
                 2. Identify the crisis type from: Medical, Fire, Security, Flood, Panic, Other.
                 3. Determine severity: P1 (High/Life-threatening), P2 (Medium), P3 (Low).
-                4. Calculate a realistic estimated response time in minutes based on severity (P1 = 1 to 3 mins, P2 = 4 to 7 mins, P3 = 10+ mins).
-                5. Generate a staff briefing and immediate action.
+                4. Generate a staff briefing and immediate action.
                 Return ONLY raw JSON, no markdown:
-                {"transcription":"what they said","crisis_type":"Medical","severity":"P1","briefing":"one sentence for staff","action":"immediate action","responders":["Security"],"estimated_minutes":2}`
+                {"transcription":"what they said","crisis_type":"Medical","severity":"P1","briefing":"one sentence for staff","action":"immediate action","responders":["Security"]}`
                 }
               ]
             }],
@@ -175,23 +179,30 @@ export default function GuestReport() {
         severity: "P2",
         briefing: "Guest reported emergency via voice.",
         action: "Respond immediately.",
-        responders: ["Security"],
-        estimated_minutes: 5
+        responders: ["Security"]
       };
       try { result = JSON.parse(cleaned); } catch (e) { }
 
-      // Build incident object
+      // Hardcoded ETA logic based on Severity (100% reliable)
+      const finalSeverity = result.severity || "P2";
+      const calculatedEta = finalSeverity === "P1" ? 2 : finalSeverity === "P2" ? 5 : 10;
+
+      // Auto-assign logic
+      const freeStaff = await getFreeStaff();
+
       const incidentData = {
         room,
         type: result.crisis_type || "Panic",
         message: result.transcription || "Voice emergency",
         guestName: name || "Anonymous",
-        severity: result.severity || "P2",
+        severity: finalSeverity,
         briefing: result.briefing || "Guest reported emergency via voice.",
         action: result.action || "Respond immediately.",
         responders: result.responders || ["Security"],
-        estimatedMinutes: result.estimated_minutes || (result.severity === "P1" ? 2 : result.severity === "P2" ? 5 : 10), // Fallback safety logic
-        status: "active",
+        estimatedMinutes: calculatedEta,
+        status: freeStaff ? "inprogress" : "active",
+        assignedTo: freeStaff ? freeStaff.name : null,
+        assignedEmail: freeStaff ? freeStaff.id : null,
         voiceReport: true,
         timestamp: serverTimestamp()
       };
@@ -200,7 +211,16 @@ export default function GuestReport() {
         incidentData.audioURL = audioDownloadURL;
       }
 
-      await addDoc(collection(db, "incidents"), incidentData);
+      const newDocRef = await addDoc(collection(db, "incidents"), incidentData);
+
+      // Lock the staff member as busy so they don't get double assigned
+      if (freeStaff) {
+        await updateDoc(doc(db, "staff_status", freeStaff.id), {
+          status: "busy",
+          assignedIncident: newDocRef.id
+        });
+      }
+
       setSubmitted(true);
 
     } catch (err) {
@@ -236,17 +256,16 @@ export default function GuestReport() {
             contents: [{
               role: "user",
               parts: [{
-                // FIXED PROMPT: Instructed Gemini to calculate ETA based on Severity
                 text: `You are a hotel crisis response AI for Byte Club Pvt Ltd. Guest name: ${name || "Unknown"}. Room: ${room}. Crisis type: ${type}. Message: "${message}". 
                 Determine severity (P1=Critical, P2=Urgent, P3=Standard). 
-                Calculate a realistic response time in minutes based on urgency (P1 = 1-3 mins, P2 = 4-7 mins, P3 = 10+ mins).
-                Return ONLY raw JSON: {"severity":"P1","briefing":"one sentence for staff","action":"single immediate action","responders":["role1","role2"],"estimated_minutes":2}`
+                Return ONLY raw JSON: {"severity":"P1","briefing":"one sentence for staff","action":"single immediate action","responders":["role1","role2"]}`
               }]
             }],
             generationConfig: { temperature: 0.1, maxOutputTokens: 256 }
           })
         }
       );
+      
       if (!aiRes.ok) throw new Error("API error");
       const aiData = await aiRes.json();
       const rawText = aiData?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
@@ -254,21 +273,39 @@ export default function GuestReport() {
       let aiJson = {
         severity: "P2", briefing: "Staff alerted.",
         action: "Respond immediately.",
-        responders: ["Security"], estimated_minutes: 5
+        responders: ["Security"]
       };
       try { aiJson = JSON.parse(cleaned); } catch (e) { }
 
-      await addDoc(collection(db, "incidents"), {
+      // Hardcoded ETA logic based on Severity (100% reliable)
+      const finalSeverity = aiJson.severity || "P2";
+      const calculatedEta = finalSeverity === "P1" ? 2 : finalSeverity === "P2" ? 5 : 10;
+
+      // Auto-assign logic
+      const freeStaff = await getFreeStaff();
+
+      const newDocRef = await addDoc(collection(db, "incidents"), {
         room, type, message,
         guestName: name || "Anonymous",
-        severity: aiJson.severity || "P2",
+        severity: finalSeverity,
         briefing: aiJson.briefing || "Staff alerted.",
         action: aiJson.action || "Respond immediately.",
         responders: aiJson.responders || ["Security"],
-        estimatedMinutes: aiJson.estimated_minutes || (aiJson.severity === "P1" ? 2 : aiJson.severity === "P2" ? 5 : 10), // Fallback safety logic
-        status: "active",
+        estimatedMinutes: calculatedEta,
+        status: freeStaff ? "inprogress" : "active",
+        assignedTo: freeStaff ? freeStaff.name : null,
+        assignedEmail: freeStaff ? freeStaff.id : null,
         timestamp: serverTimestamp()
       });
+
+      // Lock the staff member as busy
+      if (freeStaff) {
+        await updateDoc(doc(db, "staff_status", freeStaff.id), {
+          status: "busy",
+          assignedIncident: newDocRef.id
+        });
+      }
+
       setSubmitted(true);
     } catch (err) {
       console.error(err);
