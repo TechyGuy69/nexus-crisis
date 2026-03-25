@@ -147,12 +147,15 @@ export default function GuestReport() {
                   }
                 },
                 {
+                  // FIXED PROMPT: Instructed Gemini to calculate ETA based on Severity
                   text: `This is an emergency voice message from a hotel guest in room ${room}.
                 1. Transcribe what they said.
                 2. Identify the crisis type from: Medical, Fire, Security, Flood, Panic, Other.
-                3. Generate a staff briefing and immediate action.
+                3. Determine severity: P1 (High/Life-threatening), P2 (Medium), P3 (Low).
+                4. Calculate a realistic estimated response time in minutes based on severity (P1 = 1 to 3 mins, P2 = 4 to 7 mins, P3 = 10+ mins).
+                5. Generate a staff briefing and immediate action.
                 Return ONLY raw JSON, no markdown:
-                {"transcription":"what they said","crisis_type":"Medical","severity":"P1","briefing":"one sentence for staff","action":"immediate action","responders":["Security"],"estimated_minutes":5}`
+                {"transcription":"what they said","crisis_type":"Medical","severity":"P1","briefing":"one sentence for staff","action":"immediate action","responders":["Security"],"estimated_minutes":2}`
                 }
               ]
             }],
@@ -177,7 +180,7 @@ export default function GuestReport() {
       };
       try { result = JSON.parse(cleaned); } catch (e) { }
 
-      // Build incident object — only add audioURL if it exists
+      // Build incident object
       const incidentData = {
         room,
         type: result.crisis_type || "Panic",
@@ -187,13 +190,12 @@ export default function GuestReport() {
         briefing: result.briefing || "Guest reported emergency via voice.",
         action: result.action || "Respond immediately.",
         responders: result.responders || ["Security"],
-        estimatedMinutes: result.estimated_minutes || 5,
+        estimatedMinutes: result.estimated_minutes || (result.severity === "P1" ? 2 : result.severity === "P2" ? 5 : 10), // Fallback safety logic
         status: "active",
         voiceReport: true,
         timestamp: serverTimestamp()
       };
 
-      // Only add audioURL if upload succeeded
       if (audioDownloadURL) {
         incidentData.audioURL = audioDownloadURL;
       }
@@ -234,7 +236,11 @@ export default function GuestReport() {
             contents: [{
               role: "user",
               parts: [{
-                text: `You are a hotel crisis response AI for Byte Club Pvt Ltd. Guest name: ${name || "Unknown"}. Room: ${room}. Crisis type: ${type}. Message: "${message}". Return ONLY raw JSON: {"severity":"P1","briefing":"one sentence for staff","action":"single immediate action","responders":["role1","role2"],"estimated_minutes":5}`
+                // FIXED PROMPT: Instructed Gemini to calculate ETA based on Severity
+                text: `You are a hotel crisis response AI for Byte Club Pvt Ltd. Guest name: ${name || "Unknown"}. Room: ${room}. Crisis type: ${type}. Message: "${message}". 
+                Determine severity (P1=Critical, P2=Urgent, P3=Standard). 
+                Calculate a realistic response time in minutes based on urgency (P1 = 1-3 mins, P2 = 4-7 mins, P3 = 10+ mins).
+                Return ONLY raw JSON: {"severity":"P1","briefing":"one sentence for staff","action":"single immediate action","responders":["role1","role2"],"estimated_minutes":2}`
               }]
             }],
             generationConfig: { temperature: 0.1, maxOutputTokens: 256 }
@@ -259,7 +265,7 @@ export default function GuestReport() {
         briefing: aiJson.briefing || "Staff alerted.",
         action: aiJson.action || "Respond immediately.",
         responders: aiJson.responders || ["Security"],
-        estimatedMinutes: aiJson.estimated_minutes || 5,
+        estimatedMinutes: aiJson.estimated_minutes || (aiJson.severity === "P1" ? 2 : aiJson.severity === "P2" ? 5 : 10), // Fallback safety logic
         status: "active",
         timestamp: serverTimestamp()
       });
@@ -416,7 +422,7 @@ export default function GuestReport() {
                     <div style={{ fontSize: 13, color: "var(--green)", marginBottom: 12, fontWeight: 600 }}>
                       ✓ Voice recorded — ready to send
                     </div>
-                    <audio src={audioURL} controls style={{ width: "100%", marginBottom: 16 }} />
+                    <audio key={audioURL} src={audioURL} controls style={{ width: "100%", marginBottom: 16 }} />
                     <button onClick={submitVoice} disabled={processing} style={{
                       width: "100%", padding: 16, background: "var(--red)",
                       color: "#fff", border: "none", borderRadius: 12,
