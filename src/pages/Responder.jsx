@@ -4,6 +4,7 @@ import { collection, onSnapshot, orderBy, query, doc, updateDoc } from "firebase
 import ThemeToggle from "../components/ThemeToggle";
 import LanguageSelector from "../components/LanguageSelector";
 import { useLanguage } from "../context/LanguageContext";
+import { useNavigate } from "react-router-dom";
 
 const sevColor = { P1: "#E8473F", P2: "#F0A500", P3: "#4B8FE2" };
 
@@ -15,8 +16,41 @@ function timeAgo(ts) {
   return `${Math.floor(diff / 3600)}h ago`;
 }
 
+// Voice message block so responders can hear the audio
+function VoiceMessageBlock({ inc }) {
+  if (!inc.message) return null;
+  return (
+    <div style={{ background: "var(--bg2)", border: "1px solid var(--border)", borderRadius: 12, padding: 16, marginBottom: 14, boxShadow: "var(--card-shadow)" }}>
+      <div style={{ fontSize: 9, color: "var(--text3)", letterSpacing: "0.1em", marginBottom: 10, fontFamily: "'DM Mono',monospace" }}>
+        {inc.voiceReport ? "VOICE MESSAGE" : "GUEST MESSAGE"}
+      </div>
+      {inc.voiceReport ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--purple)" }}>
+            <span>🎤</span><span>Guest reported via voice recording</span>
+          </div>
+          {inc.audioURL && (
+            <div style={{ background: "var(--bg3)", borderRadius: 10, padding: "10px 14px", border: "1px solid var(--border)" }}>
+              <div style={{ fontSize: 11, color: "var(--text3)", marginBottom: 8, fontFamily: "'DM Mono',monospace" }}>PLAY GUEST VOICE</div>
+              <audio key={inc.audioURL} controls src={inc.audioURL} style={{ width: "100%", height: 36 }} />
+            </div>
+          )}
+          <div style={{ fontSize: 13, color: "var(--text2)", lineHeight: 1.7, fontStyle: "italic", wordBreak: "break-word", padding: "10px 14px", background: "var(--bg3)", borderRadius: 8, borderLeft: "3px solid var(--purple)" }}>
+            "{inc.message}"
+          </div>
+        </div>
+      ) : (
+        <div style={{ fontSize: 14, color: "var(--text2)", lineHeight: 1.7, fontStyle: "italic", wordBreak: "break-word" }}>
+          "{inc.message}"
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Responder() {
   const { t } = useLanguage();
+  const navigate = useNavigate(); // Added navigation hook
   const [incidents, setIncidents] = useState([]);
   const [selected, setSelected]   = useState(null);
 
@@ -32,7 +66,8 @@ export default function Responder() {
     setSelected(null);
   }
 
-  const active = incidents.filter(i => i.status === "active" || i.status === "responding");
+  // Changed to include "inprogress" so it matches the dashboard
+  const active = incidents.filter(i => i.status === "active" || i.status === "inprogress");
 
   if (selected) return (
     <div style={{ minHeight: "100vh", background: "var(--bg)", transition: "background 0.3s" }}>
@@ -42,9 +77,11 @@ export default function Responder() {
       }}>
         <button onClick={() => setSelected(null)} style={{
           background: "transparent", border: "none", color: "var(--text2)",
-          fontSize: 14, cursor: "pointer", padding: 0, fontFamily: "'Syne',sans-serif"
-        }}>{t.backToList}</button>
-        <span onClick={() => window.location.href = "/"} style={{ fontFamily: "'DM Mono',monospace", fontWeight: 700, color: "var(--red)", fontSize: 15, cursor: "pointer" }}>NEXUS</span>
+          fontSize: 14, cursor: "pointer", padding: 0, fontFamily: "'Syne',sans-serif",
+          display: "flex", alignItems: "center", gap: 4
+        }}>← {t.backToList}</button>
+        {/* NEXUS logo routes back to Dashboard */}
+        <span onClick={() => navigate("/dashboard")} style={{ fontFamily: "'DM Mono',monospace", fontWeight: 700, color: "var(--red)", fontSize: 15, cursor: "pointer" }}>NEXUS</span>
         <div style={{ display: "flex", gap: 8 }}><LanguageSelector /><ThemeToggle /></div>
       </div>
 
@@ -74,14 +111,14 @@ export default function Responder() {
             <div style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--purple)", animation: "pulse 2s infinite" }} />
             {t.aiBriefing}
           </div>
-          <div style={{ fontSize: 15, color: "var(--text)", lineHeight: 1.7 }}>{selected.briefing}</div>
+          <div style={{ fontSize: 15, color: "var(--text)", lineHeight: 1.7, wordBreak: "break-word" }}>{selected.briefing}</div>
         </div>
 
         <div style={{ background: "var(--red-dim)", border: "1px solid var(--red-border)", borderRadius: 14, padding: 16, marginBottom: 14 }}>
           <div style={{ fontSize: 10, color: "var(--red)", letterSpacing: "0.12em", marginBottom: 8, fontFamily: "'DM Mono',monospace" }}>
             {t.immediateAction}
           </div>
-          <div style={{ fontSize: 16, color: "var(--text)", fontWeight: 700, lineHeight: 1.5 }}>{selected.action}</div>
+          <div style={{ fontSize: 16, color: "var(--text)", fontWeight: 700, lineHeight: 1.5, wordBreak: "break-word" }}>{selected.action}</div>
         </div>
 
         <div style={{ background: "var(--bg2)", border: "1px solid var(--border)", borderRadius: 14, padding: 16, marginBottom: 24, boxShadow: "var(--card-shadow)" }}>
@@ -99,13 +136,10 @@ export default function Responder() {
               </div>
             ))}
           </div>
-          {selected.message && (
-            <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--border)" }}>
-              <div style={{ fontSize: 11, color: "var(--text3)", marginBottom: 6 }}>{t.guestMessage}</div>
-              <div style={{ fontSize: 13, color: "var(--text2)", fontStyle: "italic", lineHeight: 1.6 }}>"{selected.message}"</div>
-            </div>
-          )}
         </div>
+
+        {/* Audio Player */}
+        <VoiceMessageBlock inc={selected} />
 
         <a href="tel:112" style={{
           display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
@@ -116,7 +150,7 @@ export default function Responder() {
         <button onClick={() => resolve(selected.id)} style={{
           width: "100%", padding: 14, background: "var(--green)",
           color: "#fff", border: "none", borderRadius: 14,
-          fontSize: 15, fontWeight: 700, cursor: "pointer"
+          fontSize: 15, fontWeight: 700, cursor: "pointer", marginBottom: 32
         }}>{t.markAsResolved}</button>
       </div>
     </div>
@@ -128,9 +162,19 @@ export default function Responder() {
         display: "flex", justifyContent: "space-between", alignItems: "center",
         padding: "14px 20px", borderBottom: "1px solid var(--border)", background: "var(--bg2)"
       }}>
-        <div>
-          <div style={{ fontFamily: "'DM Mono',monospace", fontWeight: 700, color: "var(--red)", fontSize: 15 }}>NEXUS</div>
-          <div style={{ fontSize: 11, color: "var(--text3)", marginTop: 1 }}>{t.responderView}</div>
+        {/* Added Dashboard Navigation Button to Header */}
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <button onClick={() => navigate("/dashboard")} style={{
+            background: "var(--bg3)", border: "1px solid var(--border2)", color: "var(--text2)",
+            fontSize: 13, cursor: "pointer", padding: "6px 12px", borderRadius: 8, fontFamily: "'Syne',sans-serif",
+            display: "flex", alignItems: "center", gap: 6
+          }}>
+            ← {t.dashboard || "Dashboard"}
+          </button>
+          <div>
+            <div style={{ fontFamily: "'DM Mono',monospace", fontWeight: 700, color: "var(--red)", fontSize: 15 }}>NEXUS</div>
+            <div style={{ fontSize: 11, color: "var(--text3)", marginTop: 1 }}>{t.responderView}</div>
+          </div>
         </div>
         <div style={{ display: "flex", gap: 8 }}><LanguageSelector /><ThemeToggle /></div>
       </div>
@@ -184,7 +228,7 @@ export default function Responder() {
                 <div style={{ fontSize: 13, color: "var(--text2)", marginBottom: 8 }}>
                   Room {inc.room} · {inc.guestName || "Anonymous"} · {timeAgo(inc.timestamp)}
                 </div>
-                <div style={{ fontSize: 13, color: "var(--text2)", lineHeight: 1.5, marginBottom: 12 }}>
+                <div style={{ fontSize: 13, color: "var(--text2)", lineHeight: 1.5, marginBottom: 12, wordBreak: "break-word" }}>
                   {inc.briefing?.slice(0, 90)}...
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
