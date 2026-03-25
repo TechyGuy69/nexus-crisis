@@ -94,7 +94,6 @@ export default function Dashboard() {
     });
   }, [navigate]);
 
-  // Listen to staff status in real time
   useEffect(() => {
     const unsub = onSnapshot(collection(db, "staff_status"), snap => {
       const status = {};
@@ -104,7 +103,6 @@ export default function Dashboard() {
     return unsub;
   }, []);
 
-  // Update own status on load
   useEffect(() => {
     if (!currentUser) return;
     const staffRef = doc(db, "staff_status", currentUser.email);
@@ -209,7 +207,7 @@ export default function Dashboard() {
       const dateStr = now.toLocaleDateString("en-IN", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
       const timeStr = now.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
       const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -252,7 +250,6 @@ Plain text only — no markdown, no asterisks, no hashtags.`
   const resolved = myIncidents.filter(i => i.status === "resolved");
   const displayed = sortByPriority(filter === "active" ? active : resolved);
 
-  // Helper render functions
   const renderStaffPanel = () => (
     <div style={{
       background: "var(--bg2)", border: "1px solid var(--border)",
@@ -555,7 +552,7 @@ Plain text only — no markdown, no asterisks, no hashtags.`
           <div style={{ background: "var(--bg2)", border: "1px solid var(--border)", borderRadius: 12, padding: 14, boxShadow: "var(--card-shadow)" }}>
             <div style={{ fontSize: 9, color: "var(--text3)", letterSpacing: "0.1em", marginBottom: 8, fontFamily: "'DM Mono',monospace" }}>RESPONSE ETA</div>
             <div style={{ fontSize: mobile ? 22 : 28, fontWeight: 800, color: "var(--amber)", fontFamily: "'DM Mono',monospace" }}>
-              {inc.estimatedMinutes || (inc.severity === "P1" ? 2 : inc.severity === "P2" ? 5 : 10)}<span style={{ fontSize: 12, color: "var(--text3)" }}> min</span>
+              {inc.estimatedMinutes || (inc.type === "Fire" ? 2 : inc.severity === "P1" ? 2 : inc.severity === "P2" ? 5 : 10)}<span style={{ fontSize: 12, color: "var(--text3)" }}> min</span>
             </div>
           </div>
           {!mobile && (

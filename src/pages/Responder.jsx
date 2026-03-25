@@ -127,7 +127,7 @@ export default function Responder() {
               { label: t.guest,    val: selected.guestName || "Anonymous" },
               { label: t.severity, val: selected.severity },
               // FIXED: Dynamic ETA Fallback applied here
-              { label: t.eta,      val: `${selected.estimatedMinutes || (selected.severity === "P1" ? 2 : selected.severity === "P2" ? 5 : 10)} ${t.min}` },
+              { label: t.eta,      val: `${selected.estimatedMinutes || (selected.type === "Fire" ? 2 : selected.severity === "P1" ? 2 : selected.severity === "P2" ? 5 : 10)} ${t.min}` },
             ].map(item => (
               <div key={item.label}>
                 <div style={{ fontSize: 11, color: "var(--text3)", marginBottom: 4 }}>{item.label}</div>

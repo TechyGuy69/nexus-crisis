@@ -9,6 +9,10 @@ const GEMINI_KEY = import.meta.env.VITE_GEMINI_KEY;
 const CLOUD_NAME = "dsk8xiopk";
 const UPLOAD_PRESET = "nexus_voices";
 
+// Bulletproof defaults if AI fails
+const DEFAULT_ETA = { Medical: 3, Fire: 2, Security: 3, Flood: 5, Panic: 4, Other: 10 };
+const DEFAULT_SEV = { Medical: "P2", Fire: "P1", Security: "P2", Flood: "P2", Panic: "P2", Other: "P3" };
+
 export default function GuestReport() {
   const { t } = useLanguage();
   const [step, setStep] = useState(1);
@@ -101,7 +105,6 @@ export default function GuestReport() {
     setType("");
   }
 
-  // Helper function to find an available staff member
   async function getFreeStaff() {
     const staffQuery = await getDocs(collection(db, "staff_status"));
     let freeStaff = null;
@@ -126,16 +129,11 @@ export default function GuestReport() {
         formData.append("upload_preset", UPLOAD_PRESET);
         formData.append("folder", "voice-reports");
 
-        const uploadRes = await fetch(
-          `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/video/upload`,
-          { method: "POST", body: formData }
-        );
+        const uploadRes = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/video/upload`, { method: "POST", body: formData });
         const uploadData = await uploadRes.json();
-        if (uploadData.secure_url) {
-          audioDownloadURL = uploadData.secure_url;
-        }
+        if (uploadData.secure_url) audioDownloadURL = uploadData.secure_url;
       } catch (uploadErr) {
-        console.warn("Audio upload failed, continuing without audio URL:", uploadErr);
+        console.warn("Audio upload failed:", uploadErr);
       }
 
       const base64 = await new Promise((resolve, reject) => {
@@ -146,7 +144,7 @@ export default function GuestReport() {
       });
 
       const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -154,12 +152,7 @@ export default function GuestReport() {
             contents: [{
               role: "user",
               parts: [
-                {
-                  inline_data: {
-                    mime_type: mimeTypeRef.current || "audio/webm",
-                    data: base64
-                  }
-                },
+                { inline_data: { mime_type: mimeTypeRef.current || "audio/webm", data: base64 } },
                 {
                   text: `This is an emergency voice message from a hotel guest in room ${room}.
 1. Transcribe what they said.
@@ -197,19 +190,22 @@ Return ONLY raw JSON, no markdown:
       };
       try { result = JSON.parse(cleaned); } catch (e) {}
 
-      // Auto-assign logic
+      const finalType = result.crisis_type || "Panic";
+      const finalSeverity = result.severity || DEFAULT_SEV[finalType] || "P2";
+      const finalEta = result.estimated_minutes || DEFAULT_ETA[finalType] || 5;
+
       const freeStaff = await getFreeStaff();
 
       const incidentData = {
         room,
-        type: result.crisis_type || "Panic",
+        type: finalType,
         message: result.transcription || "Voice emergency",
         guestName: name || "Anonymous",
-        severity: result.severity || "P2",
+        severity: finalSeverity,
         briefing: result.briefing || "Guest reported emergency via voice.",
         action: result.action || "Respond immediately.",
         responders: result.responders || ["Security"],
-        estimatedMinutes: result.estimated_minutes || 5,
+        estimatedMinutes: finalEta,
         status: freeStaff ? "inprogress" : "active",
         assignedTo: freeStaff ? freeStaff.name : null,
         assignedEmail: freeStaff ? freeStaff.id : null,
@@ -217,22 +213,16 @@ Return ONLY raw JSON, no markdown:
         timestamp: serverTimestamp()
       };
 
-      if (audioDownloadURL) {
-        incidentData.audioURL = audioDownloadURL;
-      }
-
+      if (audioDownloadURL) incidentData.audioURL = audioDownloadURL;
       const newDocRef = await addDoc(collection(db, "incidents"), incidentData);
 
-      // Lock the staff member as busy so they don't get double assigned
       if (freeStaff) {
         await updateDoc(doc(db, "staff_status", freeStaff.id), {
-          status: "busy",
-          assignedIncident: newDocRef.id
+          status: "busy", assignedIncident: newDocRef.id
         });
       }
 
       setSubmitted(true);
-
     } catch (err) {
       console.error(err);
       alert("Error processing voice. Please use manual report or call 112.");
@@ -279,41 +269,37 @@ Return ONLY raw JSON, no markdown:
       const rawText = aiData?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
       const cleaned = rawText.replace(/```json|```/g, "").trim();
       
-      const defaultETA = {
-        Medical: 3, Fire: 2, Security: 3, Flood: 5, Panic: 4, Other: 10
-      };
-      
       let aiJson = {
-        severity: "P2", 
+        severity: DEFAULT_SEV[type], 
         briefing: "Staff alerted.",
         action: "Respond immediately.",
         responders: ["Security"], 
-        estimated_minutes: defaultETA[type] || 5
+        estimated_minutes: DEFAULT_ETA[type]
       };
       try { aiJson = JSON.parse(cleaned); } catch (e) { }
 
-      // Auto-assign logic
+      const finalSeverity = aiJson.severity || DEFAULT_SEV[type] || "P2";
+      const finalEta = aiJson.estimated_minutes || DEFAULT_ETA[type] || 5;
+
       const freeStaff = await getFreeStaff();
 
       const newDocRef = await addDoc(collection(db, "incidents"), {
         room, type, message,
         guestName: name || "Anonymous",
-        severity: aiJson.severity || "P2",
+        severity: finalSeverity,
         briefing: aiJson.briefing || "Staff alerted.",
         action: aiJson.action || "Respond immediately.",
         responders: aiJson.responders || ["Security"],
-        estimatedMinutes: aiJson.estimated_minutes || defaultETA[type] || 5,
+        estimatedMinutes: finalEta,
         status: freeStaff ? "inprogress" : "active",
         assignedTo: freeStaff ? freeStaff.name : null,
         assignedEmail: freeStaff ? freeStaff.id : null,
         timestamp: serverTimestamp()
       });
 
-      // Lock the staff member as busy
       if (freeStaff) {
         await updateDoc(doc(db, "staff_status", freeStaff.id), {
-          status: "busy",
-          assignedIncident: newDocRef.id
+          status: "busy", assignedIncident: newDocRef.id
         });
       }
 
@@ -326,7 +312,6 @@ Return ONLY raw JSON, no markdown:
     }
   }
 
-  // SUCCESS SCREEN
   if (submitted) return (
     <div style={{ minHeight: "100vh", background: "var(--bg)", display: "flex", flexDirection: "column", transition: "background 0.3s" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 20px", borderBottom: "1px solid var(--border)" }}>
@@ -367,7 +352,6 @@ Return ONLY raw JSON, no markdown:
       <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "24px 20px", position: "relative", zIndex: 1 }}>
         <div style={{ width: "100%", maxWidth: 420 }}>
 
-          {/* Header */}
           <div style={{ textAlign: "center", marginBottom: 28, opacity: mounted ? 1 : 0, animation: mounted ? "fadeUp 0.4s ease both" : "none" }}>
             <div style={{ display: "inline-block", background: "var(--red-dim)", border: "1px solid var(--red-border)", borderRadius: 6, padding: "4px 12px", fontSize: 10, color: "var(--red)", letterSpacing: "0.14em", marginBottom: 12, fontFamily: "'DM Mono',monospace" }}>{t.hotelTag}</div>
             <h1 style={{ fontSize: 26, fontWeight: 800, letterSpacing: "-0.02em", color: "var(--text)" }}>
@@ -378,12 +362,10 @@ Return ONLY raw JSON, no markdown:
             </p>
           </div>
 
-          {/* Progress bar */}
           <div style={{ height: 3, background: "var(--border)", borderRadius: 2, marginBottom: 28, overflow: "hidden" }}>
             <div style={{ height: "100%", borderRadius: 2, background: "var(--red)", width: voiceMode ? "100%" : step === 1 ? "50%" : "100%", transition: "width 0.4s ease" }} />
           </div>
 
-          {/* STEP 1 */}
           {step === 1 && !voiceMode && (
             <div style={{ animation: "fadeUp 0.35s ease" }}>
               {[
@@ -402,7 +384,6 @@ Return ONLY raw JSON, no markdown:
                 </div>
               ))}
 
-              {/* Two options */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 8 }}>
                 <button
                   onClick={() => { if (!room.trim()) return alert("Please enter your room number"); setStep(2); }}
@@ -418,19 +399,15 @@ Return ONLY raw JSON, no markdown:
             </div>
           )}
 
-          {/* VOICE MODE */}
           {voiceMode && (
             <div style={{ animation: "fadeUp 0.35s ease" }}>
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 20, padding: "20px 0" }}>
-
-                {/* Big mic button */}
                 <button
                   onClick={recording ? stopRecording : startRecording}
                   style={{
                     width: 100, height: 100, borderRadius: "50%", border: "none",
                     background: recording ? "#E8473F" : "var(--bg3)",
-                    cursor: "pointer",
-                    display: "flex", alignItems: "center", justifyContent: "center",
+                    cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
                     fontSize: 40, transition: "all 0.2s",
                     boxShadow: recording ? "0 0 0 16px #E8473F22, 0 0 0 32px #E8473F11" : "var(--card-shadow)",
                     animation: recording ? "pulse 1.5s infinite" : "none"
@@ -438,7 +415,6 @@ Return ONLY raw JSON, no markdown:
                   {recording ? "⏹" : "🎤"}
                 </button>
 
-                {/* Recording status */}
                 {recording && (
                   <div style={{ textAlign: "center", width: "100%" }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 10 }}>
@@ -456,7 +432,6 @@ Return ONLY raw JSON, no markdown:
                   </div>
                 )}
 
-                {/* Idle state */}
                 {!recording && !audioBlob && (
                   <div style={{ textAlign: "center" }}>
                     <div style={{ fontSize: 14, color: "var(--text2)", marginBottom: 6 }}>Tap the mic and speak</div>
@@ -464,24 +439,18 @@ Return ONLY raw JSON, no markdown:
                   </div>
                 )}
 
-                {/* Audio recorded */}
                 {!recording && audioBlob && (
                   <div style={{ width: "100%", textAlign: "center" }}>
                     <div style={{ fontSize: 13, color: "var(--green)", marginBottom: 12, fontWeight: 600 }}>
                       ✓ Voice recorded — ready to send
                     </div>
-                    <audio key={audioURL} src={audioURL} controls style={{ width: "100%", marginBottom: 16 }} />
+                    <audio src={audioURL} controls style={{ width: "100%", marginBottom: 16 }} />
                     <button onClick={submitVoice} disabled={processing} style={{
-                      width: "100%", padding: 16, background: "var(--red)",
-                      color: "#fff", border: "none", borderRadius: 12,
-                      fontSize: 16, fontWeight: 700,
-                      cursor: processing ? "not-allowed" : "pointer",
-                      display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
-                      opacity: processing ? 0.7 : 1
+                      width: "100%", padding: 16, background: "var(--red)", color: "#fff", border: "none", borderRadius: 12,
+                      fontSize: 16, fontWeight: 700, cursor: processing ? "not-allowed" : "pointer",
+                      display: "flex", alignItems: "center", justifyContent: "center", gap: 10, opacity: processing ? 0.7 : 1
                     }}>
-                      {processing
-                        ? <><div className="spinner" />Sending alert...</>
-                        : "🚨 SEND VOICE ALERT"}
+                      {processing ? <><div className="spinner" />Sending alert...</> : "🚨 SEND VOICE ALERT"}
                     </button>
                     <button
                       onClick={() => { setAudioBlob(null); setAudioURL(null); setRecordingTime(0); startRecording(); }}
@@ -492,14 +461,12 @@ Return ONLY raw JSON, no markdown:
                 )}
               </div>
 
-              {/* Cancel */}
               <button onClick={cancelVoice} style={{ width: "100%", padding: 12, background: "transparent", color: "var(--text3)", border: "1px solid var(--border)", borderRadius: 12, fontSize: 13, cursor: "pointer", marginTop: 8 }}>
                 ← Use manual report instead
               </button>
             </div>
           )}
 
-          {/* STEP 2 */}
           {step === 2 && !voiceMode && (
             <div style={{ animation: "fadeUp 0.35s ease" }}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 20 }}>
@@ -551,16 +518,6 @@ Return ONLY raw JSON, no markdown:
               </div>
             </div>
           )}
-
-          {/* Step dots */}
-          {!voiceMode && (
-            <div style={{ display: "flex", justifyContent: "center", gap: 6, marginTop: 24 }}>
-              {[1, 2].map(s => (
-                <div key={s} style={{ height: 4, borderRadius: 2, width: s === step ? 24 : 8, background: s === step ? "var(--red)" : "var(--border2)", transition: "all 0.3s ease" }} />
-              ))}
-            </div>
-          )}
-
         </div>
       </div>
     </div>
