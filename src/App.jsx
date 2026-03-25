@@ -165,16 +165,16 @@ export default function App() {
     <BrowserRouter>
       <Nav />
       <Routes>
-        <Route path="/" element={<Landing />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/report" element={<GuestReport />} />
+        <Route path="/"          element={<Landing />} />
+        <Route path="/login"     element={<Login />} />
+        <Route path="/report"    element={<GuestReport />} />
         <Route path="/responder" element={<Responder />} />
-        <Route path="/feedback" element={<Feedback />} />
+        <Route path="/feedback"  element={<Feedback />} />
         <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
         <Route path="/analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
-        <Route path="/qr" element={<ProtectedRoute><QRPage /></ProtectedRoute>} />
-        <Route path="/history" element={<ProtectedRoute><History /></ProtectedRoute>} />
-        <Route path="/admin" element={<ProtectedRoute><AdminPanel /></ProtectedRoute>} />
+        <Route path="/qr"        element={<ProtectedRoute><QRPage /></ProtectedRoute>} />
+        <Route path="/history"   element={<ProtectedRoute><History /></ProtectedRoute>} />
+        <Route path="/admin"     element={<ProtectedRoute adminOnly={true}><AdminPanel /></ProtectedRoute>} />
       </Routes>
     </BrowserRouter>
   );

@@ -25,9 +25,11 @@ export default function GuestReport() {
   const [audioURL, setAudioURL] = useState(null);
   const [processing, setProcessing] = useState(false);
   const [voiceMode, setVoiceMode] = useState(false);
+  
   const mediaRecorderRef = useRef(null);
   const chunksRef = useRef([]);
   const timerRef = useRef(null);
+  const mimeTypeRef = useRef(null);
 
   useEffect(() => {
     const timer = setTimeout(() => setMounted(true), 50);
@@ -50,6 +52,7 @@ export default function GuestReport() {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
+      mimeTypeRef.current = mediaRecorder.mimeType || "audio/webm";
       chunksRef.current = [];
 
       mediaRecorder.ondataavailable = e => {
@@ -57,7 +60,7 @@ export default function GuestReport() {
       };
 
       mediaRecorder.onstop = async () => {
-        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+        const blob = new Blob(chunksRef.current, { type: mimeTypeRef.current });
         setAudioBlob(blob);
         setAudioURL(URL.createObjectURL(blob));
         stream.getTracks().forEach(track => track.stop());
@@ -151,15 +154,25 @@ export default function GuestReport() {
             contents: [{
               role: "user",
               parts: [
-                { inline_data: { mime_type: "audio/webm", data: base64 } },
+                {
+                  inline_data: {
+                    mime_type: mimeTypeRef.current || "audio/webm",
+                    data: base64
+                  }
+                },
                 {
                   text: `This is an emergency voice message from a hotel guest in room ${room}.
-                1. Transcribe what they said.
-                2. Identify the crisis type from: Medical, Fire, Security, Flood, Panic, Other.
-                3. Determine severity: P1 (High/Life-threatening), P2 (Medium), P3 (Low).
-                4. Generate a staff briefing and immediate action.
-                Return ONLY raw JSON, no markdown:
-                {"transcription":"what they said","crisis_type":"Medical","severity":"P1","briefing":"one sentence for staff","action":"immediate action","responders":["Security"]}`
+1. Transcribe what they said.
+2. Identify the crisis type from: Medical, Fire, Security, Flood, Panic, Other.
+3. Determine severity and realistic ETA:
+   - Medical: P1=2min, P2=5min, P3=8min
+   - Fire: always P1=2min
+   - Security: P1=2min, P2=4min, P3=7min
+   - Flood: P2=5min, P3=10min
+   - Panic: P2=4min, P3=8min
+   - Other: P3=10min
+Return ONLY raw JSON, no markdown:
+{"transcription":"what they said","crisis_type":"Medical","severity":"P1","briefing":"one sentence for staff","action":"immediate action","responders":["Security"],"estimated_minutes":2}`
                 }
               ]
             }],
@@ -179,13 +192,10 @@ export default function GuestReport() {
         severity: "P2",
         briefing: "Guest reported emergency via voice.",
         action: "Respond immediately.",
-        responders: ["Security"]
+        responders: ["Security"],
+        estimated_minutes: 5
       };
-      try { result = JSON.parse(cleaned); } catch (e) { }
-
-      // Hardcoded ETA logic based on Severity (100% reliable)
-      const finalSeverity = result.severity || "P2";
-      const calculatedEta = finalSeverity === "P1" ? 2 : finalSeverity === "P2" ? 5 : 10;
+      try { result = JSON.parse(cleaned); } catch (e) {}
 
       // Auto-assign logic
       const freeStaff = await getFreeStaff();
@@ -195,11 +205,11 @@ export default function GuestReport() {
         type: result.crisis_type || "Panic",
         message: result.transcription || "Voice emergency",
         guestName: name || "Anonymous",
-        severity: finalSeverity,
+        severity: result.severity || "P2",
         briefing: result.briefing || "Guest reported emergency via voice.",
         action: result.action || "Respond immediately.",
         responders: result.responders || ["Security"],
-        estimatedMinutes: calculatedEta,
+        estimatedMinutes: result.estimated_minutes || 5,
         status: freeStaff ? "inprogress" : "active",
         assignedTo: freeStaff ? freeStaff.name : null,
         assignedEmail: freeStaff ? freeStaff.id : null,
@@ -256,9 +266,7 @@ export default function GuestReport() {
             contents: [{
               role: "user",
               parts: [{
-                text: `You are a hotel crisis response AI for Byte Club Pvt Ltd. Guest name: ${name || "Unknown"}. Room: ${room}. Crisis type: ${type}. Message: "${message}". 
-                Determine severity (P1=Critical, P2=Urgent, P3=Standard). 
-                Return ONLY raw JSON: {"severity":"P1","briefing":"one sentence for staff","action":"single immediate action","responders":["role1","role2"]}`
+                text: `You are a hotel crisis response AI for Byte Club Pvt Ltd.Guest name: ${name || "Unknown"}. Room: ${room}. Crisis type: ${type}. Message: "${message}".Determine severity and realistic ETA based on these rules:- Medical: P1 = 2-3 min, P2 = 5 min, P3 = 8 min- Fire: always P1 = 2 min- Security: P1 = 2 min, P2 = 4 min, P3 = 7 min- Flood: P2 = 5 min, P3 = 10 min- Panic: P2 = 4 min, P3 = 8 min- Other: P3 = 10 minReturn ONLY raw JSON, no markdown, no backticks:{"severity":"P1","briefing":"one clear sentence for staff","action":"single immediate action","responders":["role1","role2"],"estimated_minutes":2}`
               }]
             }],
             generationConfig: { temperature: 0.1, maxOutputTokens: 256 }
@@ -270,16 +278,19 @@ export default function GuestReport() {
       const aiData = await aiRes.json();
       const rawText = aiData?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
       const cleaned = rawText.replace(/```json|```/g, "").trim();
+      
+      const defaultETA = {
+        Medical: 3, Fire: 2, Security: 3, Flood: 5, Panic: 4, Other: 10
+      };
+      
       let aiJson = {
-        severity: "P2", briefing: "Staff alerted.",
+        severity: "P2", 
+        briefing: "Staff alerted.",
         action: "Respond immediately.",
-        responders: ["Security"]
+        responders: ["Security"], 
+        estimated_minutes: defaultETA[type] || 5
       };
       try { aiJson = JSON.parse(cleaned); } catch (e) { }
-
-      // Hardcoded ETA logic based on Severity (100% reliable)
-      const finalSeverity = aiJson.severity || "P2";
-      const calculatedEta = finalSeverity === "P1" ? 2 : finalSeverity === "P2" ? 5 : 10;
 
       // Auto-assign logic
       const freeStaff = await getFreeStaff();
@@ -287,11 +298,11 @@ export default function GuestReport() {
       const newDocRef = await addDoc(collection(db, "incidents"), {
         room, type, message,
         guestName: name || "Anonymous",
-        severity: finalSeverity,
+        severity: aiJson.severity || "P2",
         briefing: aiJson.briefing || "Staff alerted.",
         action: aiJson.action || "Respond immediately.",
         responders: aiJson.responders || ["Security"],
-        estimatedMinutes: calculatedEta,
+        estimatedMinutes: aiJson.estimated_minutes || defaultETA[type] || 5,
         status: freeStaff ? "inprogress" : "active",
         assignedTo: freeStaff ? freeStaff.name : null,
         assignedEmail: freeStaff ? freeStaff.id : null,

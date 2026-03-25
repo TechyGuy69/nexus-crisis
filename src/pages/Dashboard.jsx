@@ -4,12 +4,14 @@ import { collection, onSnapshot, orderBy, query, doc, updateDoc, setDoc, getDoc 
 import { useIncidentAlert } from "../hooks/useIncidentAlert";
 import { auth, ADMIN_EMAIL } from "../firebase";
 import { onAuthStateChanged } from "firebase/auth";
+import { useNavigate } from "react-router-dom";
 
 const GEMINI_KEY = import.meta.env.VITE_GEMINI_KEY;
 const sevColor = { P1: "#E8473F", P2: "#F0A500", P3: "#4B8FE2" };
 const sevBg = { P1: "#E8473F18", P2: "#F0A50018", P3: "#4B8FE218" };
 const typeIcon = { Medical: "♥", Fire: "▲", Security: "◉", Flood: "◈", Panic: "!", Other: "…" };
 const priorityOrder = { P1: 0, P2: 1, P3: 2 };
+
 
 const STAFF_LIST = [
   { id: "sayan@byteclubhotel.com", name: "Sayan", role: "Security" },
@@ -55,6 +57,7 @@ function Skeleton({ w = "100%", h = 14, r = 6 }) {
 }
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const [incidents, setIncidents] = useState([]);
   const [selected, setSelected] = useState(null);
   const [report, setReport] = useState("");
@@ -82,7 +85,14 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
-    return onAuthStateChanged(auth, u => setCurrentUser(u));
+    return onAuthStateChanged(auth, u => {
+      setCurrentUser(u);
+      if (u && u.email === ADMIN_EMAIL) {
+        navigate("/admin");
+      } else if (!u) {
+        navigate("/login");
+      }
+    });
   }, []);
 
   // Listen to staff status in real time

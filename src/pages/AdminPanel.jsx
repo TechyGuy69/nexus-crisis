@@ -64,7 +64,7 @@ function VoiceMessageBlock({ inc }) {
 function MobileIncidentDetail({ inc, staffStatus, STAFF_LIST, STATUS_CONFIG, typeIcon, sevBg, sevColor, timeAgo, unassignStaff, assignStaff, updateStatus, resolveIncident }) {
   if (!inc) return null;
   const sc = STATUS_CONFIG[inc.status] || STATUS_CONFIG.active;
-  
+
   return (
     <div>
       <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
@@ -94,7 +94,7 @@ function MobileIncidentDetail({ inc, staffStatus, STAFF_LIST, STATUS_CONFIG, typ
           <div style={{ fontSize: 11, color: "var(--text3)", letterSpacing: "0.1em", marginBottom: 10, fontFamily: "'DM Mono',monospace" }}>ASSIGN TO STAFF</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {STAFF_LIST.map(staff => {
-              const isBusy     = staffStatus[staff.id]?.status === "busy";
+              const isBusy = staffStatus[staff.id]?.status === "busy";
               const isAssigned = inc.assignedEmail === staff.id;
               return (
                 <div key={staff.id} style={{
@@ -158,9 +158,13 @@ export default function AdminPanel() {
   useEffect(() => {
     return onAuthStateChanged(auth, u => {
       setCurrentUser(u);
-      if (u && u.email !== ADMIN_EMAIL) navigate("/dashboard");
-    });
-  }, [navigate]);
+      if (!u) {
+        navigate("/login");
+      } else if (u.email !== ADMIN_EMAIL) {
+        navigate("/dashboard");
+      }
+    }); 
+  }, []);
 
   useEffect(() => {
     const q = query(collection(db, "incidents"), orderBy("timestamp", "desc"));
@@ -257,7 +261,7 @@ export default function AdminPanel() {
             </div>
           )}
         </div>
-        
+
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           {active.length > 0 && (
             <div style={{
@@ -405,7 +409,7 @@ export default function AdminPanel() {
               )
             ) : (
               <div style={{ display: "grid", gridTemplateColumns: selected ? "1fr 1fr" : "1fr", gap: 16 }}>
-                 <div>
+                <div>
                   <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
                     {["active", "resolved"].map(f => (
                       <button key={f} onClick={() => setFilter(f)} style={{
@@ -431,7 +435,7 @@ export default function AdminPanel() {
                           boxShadow: "var(--card-shadow)", transition: "all 0.15s"
                         }}>
                           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, flexWrap: "wrap", gap: 8 }}>
-                            <div style={{flex: 1, minWidth: "150px"}}>
+                            <div style={{ flex: 1, minWidth: "150px" }}>
                               <div style={{ fontWeight: 700, fontSize: 15, color: "var(--text)", marginBottom: 3, wordBreak: "break-word" }}>
                                 {typeIcon[inc.type]} {inc.type} · Room {inc.room}
                               </div>
@@ -475,7 +479,7 @@ export default function AdminPanel() {
                     })}
                   </div>
                 </div>
-                
+
                 {selected && (
                   <div style={{
                     background: "var(--bg2)", border: "1px solid var(--border)",
