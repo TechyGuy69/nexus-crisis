@@ -50,7 +50,7 @@ function VoiceMessageBlock({ inc }) {
 
 export default function Responder() {
   const { t } = useLanguage();
-  const navigate = useNavigate(); // Added navigation hook
+  const navigate = useNavigate();
   const [incidents, setIncidents] = useState([]);
   const [selected, setSelected]   = useState(null);
 
@@ -66,7 +66,6 @@ export default function Responder() {
     setSelected(null);
   }
 
-  // Changed to include "inprogress" so it matches the dashboard
   const active = incidents.filter(i => i.status === "active" || i.status === "inprogress");
 
   if (selected) return (
@@ -80,7 +79,6 @@ export default function Responder() {
           fontSize: 14, cursor: "pointer", padding: 0, fontFamily: "'Syne',sans-serif",
           display: "flex", alignItems: "center", gap: 4
         }}>← {t.backToList}</button>
-        {/* NEXUS logo routes back to Dashboard */}
         <span onClick={() => navigate("/dashboard")} style={{ fontFamily: "'DM Mono',monospace", fontWeight: 700, color: "var(--red)", fontSize: 15, cursor: "pointer" }}>NEXUS</span>
         <div style={{ display: "flex", gap: 8 }}><LanguageSelector /><ThemeToggle /></div>
       </div>
@@ -128,7 +126,8 @@ export default function Responder() {
               { label: t.room,     val: selected.room },
               { label: t.guest,    val: selected.guestName || "Anonymous" },
               { label: t.severity, val: selected.severity },
-              { label: t.eta,      val: `${selected.estimatedMinutes || 5} ${t.min}` },
+              // FIXED: Dynamic ETA Fallback applied here
+              { label: t.eta,      val: `${selected.estimatedMinutes || (selected.severity === "P1" ? 2 : selected.severity === "P2" ? 5 : 10)} ${t.min}` },
             ].map(item => (
               <div key={item.label}>
                 <div style={{ fontSize: 11, color: "var(--text3)", marginBottom: 4 }}>{item.label}</div>
@@ -162,7 +161,6 @@ export default function Responder() {
         display: "flex", justifyContent: "space-between", alignItems: "center",
         padding: "14px 20px", borderBottom: "1px solid var(--border)", background: "var(--bg2)"
       }}>
-        {/* Added Dashboard Navigation Button to Header */}
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
           <button onClick={() => navigate("/dashboard")} style={{
             background: "var(--bg3)", border: "1px solid var(--border2)", color: "var(--text2)",

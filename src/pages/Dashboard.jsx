@@ -12,7 +12,6 @@ const sevBg = { P1: "#E8473F18", P2: "#F0A50018", P3: "#4B8FE218" };
 const typeIcon = { Medical: "♥", Fire: "▲", Security: "◉", Flood: "◈", Panic: "!", Other: "…" };
 const priorityOrder = { P1: 0, P2: 1, P3: 2 };
 
-
 const STAFF_LIST = [
   { id: "sayan@byteclubhotel.com", name: "Sayan", role: "Security" },
   { id: "sohini@byteclubhotel.com", name: "Sohini", role: "Medical" },
@@ -93,7 +92,7 @@ export default function Dashboard() {
         navigate("/login");
       }
     });
-  }, []);
+  }, [navigate]);
 
   // Listen to staff status in real time
   useEffect(() => {
@@ -556,7 +555,7 @@ Plain text only — no markdown, no asterisks, no hashtags.`
           <div style={{ background: "var(--bg2)", border: "1px solid var(--border)", borderRadius: 12, padding: 14, boxShadow: "var(--card-shadow)" }}>
             <div style={{ fontSize: 9, color: "var(--text3)", letterSpacing: "0.1em", marginBottom: 8, fontFamily: "'DM Mono',monospace" }}>RESPONSE ETA</div>
             <div style={{ fontSize: mobile ? 22 : 28, fontWeight: 800, color: "var(--amber)", fontFamily: "'DM Mono',monospace" }}>
-              {inc.estimatedMinutes || 5}<span style={{ fontSize: 12, color: "var(--text3)" }}> min</span>
+              {inc.estimatedMinutes || (inc.severity === "P1" ? 2 : inc.severity === "P2" ? 5 : 10)}<span style={{ fontSize: 12, color: "var(--text3)" }}> min</span>
             </div>
           </div>
           {!mobile && (
