@@ -66,6 +66,4 @@ Designed for **hotels, resorts, campuses, and large facilities** where rapid eme
 
 ---
 
-## ⭐ Show Your Support  
-
-If you like this project, consider giving it a ⭐ on GitHub!
+## **Hope You'll Like It.**
