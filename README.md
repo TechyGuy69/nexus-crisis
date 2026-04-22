@@ -1,16 +1,71 @@
-# React + Vite
+<p align="center">
+  <h1 align="center">🚨 NEXUS Crisis Response System</h1>
+  <p align="center">AI-powered real-time emergency coordination platform</p>
+</p>
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+An **AI-powered, real-time crisis coordination platform** designed for the hospitality industry.  
+NEXUS enables **instant emergency reporting, intelligent decision-making, and seamless coordination** between guests, staff, and administrators — ensuring faster response and zero information loss during critical situations.  
 
-Currently, two official plugins are available:
+🔗 **Live Project:** https://nexus-crisis.web.app/  
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+---
 
-## React Compiler
+## ⚡ Key Features  
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- 🚨 **QR-based emergency reporting** (no app required)  
+- 🎤 **Voice + text input** with AI processing  
+- 🤖 **Google Gemini-powered** crisis classification & briefing  
+- 📊 **Real-time dashboards** for staff & admin  
+- 🔔 **Instant alerts** with priority-based notifications  
+- 👥 **Smart staff assignment & tracking**  
+- 🌍 **Multi-language support**  
+- 📝 **AI-generated incident reports**  
 
-## Expanding the ESLint configuration
+---
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## 🛠️ Tech Stack  
+
+- **Frontend:** React + Vite  
+- **Backend:** Firebase (Auth, Firestore, Hosting)  
+- **AI:** Google Gemini 2.0 Flash  
+- **Storage:** Cloudinary  
+- **APIs:** Web Notifications API, Web Audio API, MediaRecorder API  
+- **DevOps:** GitHub Actions (CI/CD)  
+
+---
+
+## 🎯 Use Case  
+
+Designed for **hotels, resorts, campuses, and large facilities** where rapid emergency response and coordination are critical.  
+
+---
+
+## 🚀 Future Scope  
+
+- 🤖 AI-based predictive crisis detection  
+- 🚑 Integration with emergency services  
+- 📱 Mobile app development  
+- 📡 IoT-based automatic alert systems  
+
+---
+
+## 🧠 One-Line Pitch  
+
+> **“An AI-powered platform that eliminates communication gaps during emergencies and enables real-time crisis coordination.”**
+
+---
+
+## 👨‍💻 Team  
+
+**Byte Club**  
+
+- Usnish Banerjee *(Team Leader)*  
+- Debasmita Banik  
+- Sohini Chakraborty  
+- Sayan Majumder  
+
+---
+
+## ⭐ Show Your Support  
+
+If you like this project, consider giving it a ⭐ on GitHub!
